@@ -1,0 +1,25 @@
+env:
+  name: MiniGrid-DoorKey-16x16-v0
+  max_episode_steps: 25600
+seed: 0
+cuda: true
+capture_video: true
+agent:
+  lr_actor: 0.00025
+  lr_critic: 0.00025
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  epochs: 4
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  target_kl: 0.01
+  hidden_size: 128
+train:
+  num_envs: 4
+  total_steps: 1500000
+  num_steps_env: 6400
+  num_mini_batches: 4
+  eval_interval: 10000
+  eval_episodes: 10
