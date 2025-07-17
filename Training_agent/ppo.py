@@ -30,7 +30,7 @@ from networks import PolicyNetwork, ValueNetwork
 
 def make_env(env_name, max_episode_steps ,seed, idx, capture_video, run_name):
     def thunk():
-        env = gym.make(env_name, max_episode_steps, render_mode="rgb_array")
+        env = gym.make(env_name, max_steps = max_episode_steps, render_mode="rgb_array")
         env = FlatObsWrapper(env)  # Flatten the observation space
         env = gym.wrappers.RecordEpisodeStatistics(env)
         if capture_video:
@@ -237,7 +237,7 @@ class PPOAgent(AbstractAgent):
         average_returns: List[float] = []
         std_returns: List[float] = []
 
-        print(f"Training PPO on {self.env_id} with {self.num_envs} environments for {total_steps} steps...")
+        print(f"Training PPO on {self.env_id} with {self.num_envs} environments for {total_steps} steps and max episode steps {self.max_episode_steps} ...")
 
         for update in range(1, num_updates + 1):
             # Anneal learning rate

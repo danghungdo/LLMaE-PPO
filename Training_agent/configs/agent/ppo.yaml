@@ -3,7 +3,7 @@
 
 env:
   # Gymnasium environment to train on
-  name: MiniGrid-DoorKey-8x8-v0
+  name: MiniGrid-UnlockPickup-v0
   max_episode_steps: 6400
 
 # Global random seed
@@ -45,7 +45,7 @@ train:
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 1000000
+  total_steps: 1500000
   # Number of steps to collect per environment before updating
   num_steps_env: 1600
   
