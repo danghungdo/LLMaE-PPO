@@ -7,7 +7,7 @@ By starting PPO training from an LLM-informed prior, we aim to improve convergen
 ## Key Features
 - One-time LLM prompt to generate demonstrations
 - Behavior cloning for policy pretraining
-- PPO training and evaluation in MiniGrid and MinAtar environments
+- PPO training and evaluation in MiniGrid environment
 - Baselines: Random initialization and transfer learning
 - Evaluation via sample efficiency, return curves, and visitation heatmaps
 
@@ -18,71 +18,84 @@ This project was developed as part of a university reinforcement learning course
 
 1. **Install dependencies:**
    ```bash
-   uv sync
+   make install
    ```
-
-2. **Train PPO agent:**
+   Or just sync dependencies:
    ```bash
-   python main.py --env-name MiniGrid-Empty-8x8-v0 --total-timesteps 100000
+   make sync
    ```
 
-3. **Evaluate and create GIF:**
+2. **Train PPO agent with config in `llmae_ppo/configs/ppo.yaml`:**
    ```bash
-   python evaluate.py --model-path checkpoints/ppo_final.pt --gif-path agent_trajectory.gif
+   python llmae_ppo/train.py
    ```
 
-## Usage
+### Configuration
 
-### Training
+The project uses Hydra for configuration management. The default configuration is in `llmae_ppo/configs/ppo.yaml`. You can override any parameter using command line arguments:
+
 ```bash
-# Basic training
-python main.py
-
-# Custom environment and timesteps
-python main.py --env-name MiniGrid-DoorKey-6x6-v0 --total-timesteps 200000
-
-# GPU training
-python main.py --device cuda
-```
-
-### Evaluation with GIF
-```bash
-# Create GIF and evaluate performance
-python evaluate.py --model-path checkpoints/ppo_final.pt --gif-path my_agent.gif
-
-# Different environment
-python evaluate.py --model-path checkpoints/ppo_final.pt --env-name MiniGrid-DoorKey-6x6-v0 --gif-path doorkey_agent.gif
+# Override multiple parameters
+python llmae_ppo/train.py env_name=MiniGrid-Empty-8x8-v0 total_timesteps=100000 learning_rate=0.0003
 ```
 
 ## Files
 
-- `main.py` - Training script
-- `evaluate.py` - Evaluation script with GIF generation
-- `llmae_ppo/` - PPO implementation
-  - `ppo.py` - PPO agent and trainer
+- `llmae_ppo/` - Main package directory
+  - `train.py` - Training script with Hydra configuration
+  - `trainer.py` - PPO trainer implementation
+  - `ppo_agent.py` - PPO agent implementation
   - `networks.py` - Policy and value networks
-  - `env_wrapper.py` - MiniGrid environment wrapper
+  - `env.py` - Environment wrapper for MiniGrid
   - `utils.py` - Utility functions
+  - `agent/` - Agent-related modules
+    - `abstract_agent.py` - Abstract agent interface
+    - `buffer.py` - Experience buffer implementation
+  - `configs/` - Configuration files
+    - `ppo.yaml` - Default PPO configuration
 
 ## Output
 
-- **Training**: Saves checkpoints to `checkpoints/`
-- **Evaluation**: Creates GIF showing agent's trajectory and prints performance metrics
+- **Training**: By default, results are saved to `outputs/YYYY-MM-DD/HH-MM-SS/`
+  - Training logs
+  - Performance plots (e.g., `average_return_vs_frames_*.png`)
+  - Video recordings of agent episodes
+- **Evaluation**: By default, evaluation videos are saved to `outputs/.../videos/eval/`
+
+## Available Make Commands
+
+```bash
+# Show all available commands
+make help
+
+# Install dependencies and pre-commit hooks
+make install
+
+# Sync dependencies only
+make sync
+
+# Format code with ruff and isort
+make format
+
+# Check code for issues (dry run)
+make check
+
+# Run pre-commit hooks
+make pre-commit
+```
 
 ## Development
 
 ### Code Quality
 
-This project uses automated formatting and linting:
+This project uses automated formatting and linting with Ruff:
 
 ```bash
 # Format and lint code
-python format.py
+make format
 
-# Or manually:
-black llmae_ppo/ main.py evaluate.py
-isort llmae_ppo/ main.py evaluate.py
-flake8 llmae_ppo/ main.py evaluate.py
+# Check code for issues (without fixing)
+make check
 ```
 
 ### Pre-commit Hooks
@@ -90,16 +103,13 @@ flake8 llmae_ppo/ main.py evaluate.py
 Pre-commit hooks automatically format code on commit:
 
 ```bash
-# Install hooks (already done if you ran uv sync)
+# Install pre-commit hooks if not already installed
 pre-commit install
 
 # Run hooks manually
-pre-commit run --all-files
+make pre-commit
 ```
 
 The hooks will automatically:
-- Format code with Black
+- Format code with Ruff
 - Sort imports with isort
-- Lint with flake8
-- Fix trailing whitespace
-- Check YAML files
