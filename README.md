@@ -61,6 +61,25 @@ python llmae_ppo/train.py env_name=MiniGrid-Empty-8x8-v0 total_timesteps=100000 
   - Performance plots (e.g., `average_return_vs_frames_*.png`)
   - Video recordings of agent episodes
 - **Evaluation**: By default, evaluation videos are saved to `outputs/.../videos/eval/`
+- **TensorBoard**: Logs are saved to `outputs/.../runs/` directory
+
+## TensorBoard
+
+Start TensorBoard for monitoring training:
+```bash
+tensorboard --logdir=runs
+```
+
+For multirun comparison:
+```bash
+python llmae_ppo/train.py seed=0,1,2 -m
+tensorboard --logdir=runs
+```
+
+Collect logging data for plotting:
+```bash
+python plot_sample_efficiency.py
+```
 
 ## Available Make Commands
 
