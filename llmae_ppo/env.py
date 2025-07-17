@@ -25,6 +25,7 @@ def make_env(env_name, max_episode_steps, seed, idx, capture_video, run_name):
 
     def thunk():
         env = gym.make(env_name, max_episode_steps, render_mode="rgb_array")
+        env.unwrapped.max_steps = max_episode_steps
         env = FlatObsWrapper(env)  # Flatten the observation space
         env = gym.wrappers.RecordEpisodeStatistics(env)
         if capture_video:

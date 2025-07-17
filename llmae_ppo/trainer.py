@@ -5,23 +5,29 @@ Contains the PPOTrainer class with training loop and evaluation logic.
 
 from typing import List, Tuple
 
+import time
+
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.utils.tensorboard
+from tqdm import tqdm
 
 from env import create_eval_env
 from ppo_agent import PPOAgent
 
 
 class PPOTrainer:
-    def __init__(self, agent: PPOAgent):
+    def __init__(self, agent: PPOAgent, writer: torch.utils.tensorboard.SummaryWriter):
         """
         Initialize the PPO trainer.
 
         Args:
             agent: PPO agent to train
+            writer: TensorBoard writer for logging
         """
         self.agent = agent
+        self.writer = writer
 
     def train(
         self,
@@ -49,7 +55,8 @@ class PPOTrainer:
         )
 
         global_step = 0
-        obs, info = self.agent.envs.reset()
+        start_time = time.time()
+        obs, _ = self.agent.envs.reset()
         next_states = torch.Tensor(obs).to(self.agent.device)
         next_dones = torch.zeros(self.agent.num_envs).to(self.agent.device)
         num_updates = total_steps // self.agent.batch_size
@@ -63,7 +70,10 @@ class PPOTrainer:
             f"Training PPO on {self.agent.env_id} with {self.agent.num_envs} environments for {total_steps} steps..."
         )
 
-        for update in range(1, num_updates + 1):
+        # Create progress bar for training updates
+        pbar = tqdm(range(1, num_updates + 1), desc="Training", unit="update")
+
+        for update in pbar:
             # Anneal learning rate
             frac = 1.0 - (update - 1.0) / num_updates
             lrnow_actor = frac * self.agent.lr_actor
@@ -95,8 +105,14 @@ class PPOTrainer:
                     steps.append(global_step)
                     average_returns.append(mean_return)
                     std_returns.append(std_return)
+
+                    self.writer.add_scalar(
+                        "charts/average_return", mean_return, global_step
+                    )
+                    self.writer.add_scalar("charts/std_return", std_return, global_step)
+
                     print(
-                        f"[Eval ] Global Step {global_step:6d} AvgReturn {mean_return:5.1f} ± {std_return:4.1f}"
+                        f"\nEvaluating: Global Step {global_step:6d} AvgReturn {mean_return:5.1f} ± {std_return:4.1f}"
                     )
 
             # Compute advantages after rollout
@@ -113,7 +129,7 @@ class PPOTrainer:
                 )
 
             # PPO update
-            self.agent.update(
+            results = self.agent.update(
                 self.agent.states,
                 self.agent.actions,
                 self.agent.logprobs,
@@ -122,6 +138,46 @@ class PPOTrainer:
                 self.agent.values,
             )
 
+            # Logging
+            sps = int(global_step / (time.time() - start_time))
+
+            # Update progress bar with current metrics
+            pbar.set_postfix(
+                {
+                    "Step": f"{global_step:,}",
+                    "SPS": f"{sps:,}",
+                    "VLoss": f"{results['value_loss']:.3f}",
+                    "PLoss": f"{results['policy_loss']:.3f}",
+                    "Entropy": f"{results['entropy']:.3f}",
+                    "ApproxKL": f"{results['approx_kl']:.3f}",
+                }
+            )
+
+            self.writer.add_scalar("charts/SPS", sps, global_step)
+            self.writer.add_scalar(
+                "charts/learning_rate",
+                self.agent.optimizer.param_groups[0]["lr"],
+                global_step,
+            )
+            self.writer.add_scalar(
+                "losses/value_loss", results["value_loss"], global_step
+            )
+            self.writer.add_scalar(
+                "losses/policy_loss", results["policy_loss"], global_step
+            )
+            self.writer.add_scalar("losses/entropy", results["entropy"], global_step)
+            self.writer.add_scalar(
+                "losses/old_approx_kl", results["old_approx_kl"], global_step
+            )
+            self.writer.add_scalar(
+                "losses/approx_kl", results["approx_kl"], global_step
+            )
+            self.writer.add_scalar("losses/clipfrac", results["clipfrac"], global_step)
+            self.writer.add_scalar(
+                "losses/explained_variance", results["explained_variance"], global_step
+            )
+
+        pbar.close()
         print(f"Training complete after {global_step} steps.")
 
         return steps, average_returns, std_returns

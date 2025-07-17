@@ -4,7 +4,7 @@
 env:
   # Gymnasium environment to train on
   name: MiniGrid-DoorKey-8x8-v0
-  max_episode_steps: 6400
+  max_episode_steps: 640
 
 # Global random seed
 seed: 0
@@ -13,9 +13,11 @@ seed: 0
 cuda: true
 
 # Capture video of the agent's performance
-capture_video: true
+capture_video: false
 
 agent:
+  # Agent type
+  name: PPO
   # Learning rates (same for actor and critic)
   lr_actor: 2.5e-4    # actor step-size
   lr_critic: 2.5e-4    # critic step-size
@@ -36,18 +38,19 @@ agent:
   max_grad_norm: 0.5
 
   # the target KL divergence threshold for early stopping
-  target_kl: 0.01
+  target_kl: null # null means no early stopping
 
   # Network size
   hidden_size: 64
+
 train:
   # Number of parallel environments
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 1000000
+  total_steps: 500000
   # Number of steps to collect per environment before updating
-  num_steps_env: 1600
+  num_steps_env: 128
   
   # number of mini-batches per update
   num_mini_batches: 4

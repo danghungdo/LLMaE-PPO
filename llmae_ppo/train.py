@@ -8,6 +8,7 @@ import time
 import hydra
 import torch
 from omegaconf import DictConfig
+from torch.utils.tensorboard import SummaryWriter
 
 from env import create_vector_env
 from ppo_agent import PPOAgent
@@ -30,7 +31,8 @@ def main(cfg: DictConfig) -> None:
     Args:
         cfg: Hydra configuration
     """
-    run_name = f"{cfg.env.name}__{cfg.seed}__{int(time.time())}"
+    run_name = f"{cfg.agent.name}__{cfg.env.name}__{cfg.seed}__{int(time.time())}"
+    writer = SummaryWriter(f"runs/{run_name}")
 
     # Set random seeds
     set_seed(cfg.seed)
@@ -70,7 +72,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Initialize trainer
-    trainer = PPOTrainer(agent)
+    trainer = PPOTrainer(agent, writer)
 
     # Train the agent
     steps, average_returns, _ = trainer.train(

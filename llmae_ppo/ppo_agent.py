@@ -3,7 +3,7 @@ Core PPO agent implementation.
 Contains the PPOAgent class with network initialization, prediction, and update logic.
 """
 
-from typing import Tuple
+from typing import Dict, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -60,7 +60,6 @@ class PPOAgent(AbstractAgent):
         self.target_kl = target_kl
         self.cuda = cuda
         self.seed = seed
-
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() and self.cuda else "cpu"
         )
@@ -165,7 +164,7 @@ class PPOAgent(AbstractAgent):
         advantages: torch.Tensor,
         returns: torch.Tensor,
         values: torch.Tensor,
-    ) -> None:
+    ) -> Dict[str, float]:
         """
         Update the policy and value networks using PPO.
 
@@ -176,6 +175,10 @@ class PPOAgent(AbstractAgent):
             advantages: Advantage tensor
             returns: Return tensor
             values: Value tensor
+
+        Returns:
+            Dictionary of results (learning rate, value loss, policy loss, entropy, old approx KL, approx KL, clipfrac, explained variance)
+
         """
         # Flatten tensors
         b_states = states.reshape((-1,) + self.envs.single_observation_space.shape)
@@ -183,8 +186,10 @@ class PPOAgent(AbstractAgent):
         b_logprobs = logprobs.reshape(-1)
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
+        b_values = values.reshape(-1)
 
         inds = np.arange(self.batch_size)
+        clipfracs = []
 
         for _ in range(self.epochs):
             np.random.shuffle(inds)
@@ -197,6 +202,13 @@ class PPOAgent(AbstractAgent):
                 )
                 logratio = newlogprobs - b_logprobs[mb_inds]
                 ratio = logratio.exp()
+
+                with torch.no_grad():
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clipfracs += [
+                        ((ratio - 1.0).abs() > self.clip_eps).float().mean().item()
+                    ]
 
                 mb_advantages = b_advantages[mb_inds]
                 mb_returns = b_returns[mb_inds]
@@ -220,6 +232,25 @@ class PPOAgent(AbstractAgent):
                 nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
                 nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
+            if self.target_kl is not None:
+                if approx_kl > self.target_kl:
+                    break
+
+        y_pred, y_true = b_values.cpu().numpy(), b_returns.cpu().numpy()
+        var_y = np.var(y_true)
+        explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
+
+        results = {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "value_loss": v_loss.item(),
+            "policy_loss": pg_loss.item(),
+            "entropy": entropy_loss.item(),
+            "old_approx_kl": old_approx_kl.item(),
+            "approx_kl": approx_kl.item(),
+            "clipfrac": np.mean(clipfracs),
+            "explained_variance": explained_var,
+        }
+        return results
 
     def set_train_mode(self):
         """Set networks to training mode."""
