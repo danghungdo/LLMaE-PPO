@@ -1,0 +1,61 @@
+{
+  "seed": 5,
+  "trajectories": [
+    {
+      "action": 1,
+      "observation": "Agent turns right, now facing down"
+    },
+    {
+      "action": 2,
+      "observation": "Agent moves forward to (2, 3)"
+    },
+    {
+      "action": 0,
+      "observation": "Agent turns left, now facing right"
+    },
+    {
+      "action": 3,
+      "observation": "Agent picks up the key at (1, 3)"
+    },
+    {
+      "action": 0,
+      "observation": "Agent turns left, now facing up"
+    },
+    {
+      "action": 2,
+      "observation": "Agent moves forward to (2, 2)"
+    },
+    {
+      "action": 1,
+      "observation": "Agent turns right, now facing right"
+    },
+    {
+      "action": 2,
+      "observation": "Agent moves forward to (3, 2)"
+    },
+    {
+      "action": 5,
+      "observation": "Agent toggles the door at (3, 2), door is now open"
+    },
+    {
+      "action": 2,
+      "observation": "Agent moves forward to (4, 2)"
+    },
+    {
+      "action": 1,
+      "observation": "Agent turns right, now facing down"
+    },
+    {
+      "action": 2,
+      "observation": "Agent moves forward to (4, 3)"
+    },
+    {
+      "action": 2,
+      "observation": "Agent moves forward to (4, 4)"
+    },
+    {
+      "action": 6,
+      "observation": "Agent reaches the goal at (4, 4)"
+    }
+  ]
+}

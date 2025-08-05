@@ -75,12 +75,12 @@ def main(cfg: DictConfig) -> None:
     trainer = PPOTrainer(agent, writer)
 
     # Train the agent
-    steps, average_returns, _ = trainer.train(
+    steps, average_returns, _, success_rates = trainer.train(
         cfg.train.total_steps, cfg.train.eval_interval, cfg.train.eval_episodes
     )
 
     # Plot and save results
-    plot_and_save_results(steps, average_returns, cfg.seed, cfg.env.name)
+    plot_and_save_results(steps, average_returns, success_rates, cfg.seed, cfg.env.name)
 
 
 if __name__ == "__main__":

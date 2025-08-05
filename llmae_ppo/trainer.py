@@ -61,10 +61,11 @@ class PPOTrainer:
         next_dones = torch.zeros(self.agent.num_envs).to(self.agent.device)
         num_updates = total_steps // self.agent.batch_size
 
-        # create lists of average rewards and steps for plotting
+        # create lists of average rewards and success rate and steps for plotting
         steps: List[int] = []
         average_returns: List[float] = []
         std_returns: List[float] = []
+        success_rates: List[float] = []
 
         print(
             f"Training PPO on {self.agent.env_id} with {self.agent.num_envs} environments for {total_steps} steps..."
@@ -101,18 +102,26 @@ class PPOTrainer:
                 next_dones = torch.Tensor(done).to(self.agent.device)
 
                 if global_step % eval_interval == 0:
-                    mean_return, std_return = self.evaluate(eval_envs, eval_episodes)
+                    mean_return, std_return, success_rate = self.evaluate(
+                        eval_envs, eval_episodes
+                    )
                     steps.append(global_step)
                     average_returns.append(mean_return)
                     std_returns.append(std_return)
+                    success_rates.append(success_rate)
 
                     self.writer.add_scalar(
                         "charts/average_return", mean_return, global_step
                     )
                     self.writer.add_scalar("charts/std_return", std_return, global_step)
 
+                    self.writer.add_scalar(
+                        "charts/success_rate", success_rate, global_step
+                    )
+
                     print(
-                        f"\nEvaluating: Global Step {global_step:6d} AvgReturn {mean_return:5.1f} ± {std_return:4.1f}"
+                        f"""\nEvaluating: Global Step {global_step:6d} AvgReturn {mean_return:5.1f} ± {std_return:4.1f}
+                        Success Rate: {success_rate:.2%}""",
                     )
 
             # Compute advantages after rollout
@@ -180,7 +189,7 @@ class PPOTrainer:
         pbar.close()
         print(f"Training complete after {global_step} steps.")
 
-        return steps, average_returns, std_returns
+        return steps, average_returns, std_returns, success_rates
 
     def evaluate(
         self, eval_envs: gym.vector.SyncVectorEnv, num_episodes: int
@@ -199,6 +208,9 @@ class PPOTrainer:
 
         # List to store returns of completed episodes
         returns = []
+
+        # Track number of episodes completed successfully
+        success_count = 0
 
         # Reset all environments and get initial states
         obs, infos = eval_envs.reset()
@@ -225,9 +237,13 @@ class PPOTrainer:
                         returns.append(episode_returns[i])
                         episode_returns[i] = 0
                         episodes_completed += 1
+                        if terminations[i]:
+                            success_count += 1
                         if episodes_completed >= num_episodes:
                             break
 
         self.agent.set_train_mode()
 
-        return float(np.mean(returns)), float(np.std(returns))
+        success_rate = success_count / num_episodes
+
+        return float(np.mean(returns)), float(np.std(returns)), float(success_rate)

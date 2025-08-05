@@ -28,6 +28,7 @@ def set_seed(seed: int) -> None:
 def plot_and_save_results(
     steps: List[int],
     average_returns: List[float],
+    success_rates: List[float],
     seed: int,
     env_name: str,
     save_dir: str = "results",
@@ -38,21 +39,34 @@ def plot_and_save_results(
     Args:
         steps: List of training steps
         average_returns: List of average returns
+        success_rates: List of success rates
         seed: Random seed used for training
         env_name: Environment name
         save_dir: Directory to save plot
     """
-    plt.figure(figsize=(10, 6))
-    plt.plot(
+    fig, axs = plt.subplots(2, figsize=(10, 6))
+
+    axs[0].plot(
         steps,
         average_returns,
         label=f"PPO (Seed: {seed})",
     )
-    plt.xlabel("Steps")
-    plt.ylabel("Average Return")
-    plt.title(f"Average Return vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
-    plt.grid(True)
-    plt.legend()
+    axs[0].set_xlabel("Steps")
+    axs[0].set_ylabel("Average Return")
+    axs[0].set_title(f"Average Return vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
+    axs[0].grid(True)
+    axs[0].legend()
+
+    axs[1].plot(
+        steps,
+        success_rates,
+        label=f"PPO (Seed: {seed})",
+    )
+    axs[1].set_xlabel("Steps")
+    axs[1].set_ylabel("Success Rate")
+    axs[1].set_title(f"Success Rate vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
+    axs[1].grid(True)
+    axs[1].legend()
 
     # Create results directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
@@ -60,7 +74,7 @@ def plot_and_save_results(
     # Save the plot as PNG
     plot_path = os.path.join(
         save_dir,
-        f"average_return_vs_frames_{env_name}.png",
+        f"training_results_{env_name}.png",
     )
     plt.savefig(plot_path)
     plt.close()

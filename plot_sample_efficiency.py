@@ -138,7 +138,7 @@ def plot_sample_efficiency(all_data, metric_name, save_path=None):
 # Example usage
 if __name__ == "__main__":
     # Read all logs
-    multirun_dir = "multirun/2025-07-17/23-28-47"
+    multirun_dir = "multirun/2025-08-04/22-47-28"
     all_data = read_all_logs(multirun_dir)
     
     # Show available metrics
@@ -155,4 +155,10 @@ if __name__ == "__main__":
             all_data, 
             "charts/average_return",
             save_path="results/sample_efficiency_average_return.png"
+        )
+
+        plot_sample_efficiency(
+            all_data, 
+            "charts/success_rate",
+            save_path="results/sample_efficiency_success_rate.png"
         )

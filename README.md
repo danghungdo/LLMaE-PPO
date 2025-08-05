@@ -25,21 +25,57 @@ This project was developed as part of a university reinforcement learning course
    make sync
    ```
 
-2. **Train PPO agent with config in `llmae_ppo/configs/ppo.yaml`:**
+2. **Generate expert trajectories using LLM (optional - data already provided):**
+   ```bash
+   # Run the Jupyter notebook to generate new trajectory data
+   jupyter notebook llmae_ppo_generate_trajectories.ipynb
+   ```
+
+3. **Pre-train policy using behavioral cloning:**
+   ```bash
+   python llmae_ppo_pre-train.py
+   ```
+
+4. **Train PPO agent with config in `llmae_ppo/configs/ppo.yaml`:**
    ```bash
    python llmae_ppo/train.py
    ```
 
 ### Configuration
 
-The project uses Hydra for configuration management. The default configuration is in `llmae_ppo/configs/ppo.yaml`. You can override any parameter using command line arguments:
+The project uses Hydra for configuration management:
 
+**PPO Training**: Configuration in `llmae_ppo/configs/ppo.yaml`
 ```bash
-# Override multiple parameters
-python llmae_ppo/train.py env_name=MiniGrid-Empty-8x8-v0 total_timesteps=100000 learning_rate=0.0003
+# Override PPO parameters
+python llmae_ppo/train.py env.name=MiniGrid-Empty-8x8-v0 train.total_steps=100000 agent.lr_actor=0.0003
+```
+
+**Behavioral Cloning**: Configuration in `llmae_ppo/configs/bc.yaml`
+```bash
+# Override BC parameters
+python llmae_ppo_pre-train.py train.num_epochs=100 model.hidden_size=128 model.lr=0.001
 ```
 
 ## Files
+
+### Core Training Pipeline
+
+- `llmae_ppo_generate_trajectories.ipynb` - **Trajectory Generation Notebook**
+  - Uses LLM (via OpenAI API) to generate expert-like trajectories
+  - Converts natural language environment descriptions to action sequences
+  - Simulates trajectories in MiniGrid environment to collect state-action pairs
+  - Saves training data as pickle files in `trajectory_data/` directory
+  - Supports batch generation for multiple environment seeds
+
+- `llmae_ppo_pre-train.py` - **Behavioral Cloning Pre-training Script**
+  - Trains a behavioral cloning model using LLM-generated trajectories
+  - Uses same network architecture as PPO policy for consistency
+  - Implements supervised learning with CrossEntropyLoss
+  - Configurable via Hydra (`llmae_ppo/configs/bc.yaml`)
+  - Saves pre-trained model for PPO initialization
+
+### PPO Training
 
 - `llmae_ppo/` - Main package directory
   - `train.py` - Training script with Hydra configuration
@@ -53,9 +89,19 @@ python llmae_ppo/train.py env_name=MiniGrid-Empty-8x8-v0 total_timesteps=100000 
     - `buffer.py` - Experience buffer implementation
   - `configs/` - Configuration files
     - `ppo.yaml` - Default PPO configuration
+    - `bc.yaml` - Behavioral cloning configuration
 
 ## Output
 
+### Trajectory Generation
+- **LLM Trajectories**: Saved to `trajectory_data/trajectories_seed*.pkl`
+- **JSON Format**: Human-readable trajectories in `trajectories.json`
+
+### Behavioral Cloning
+- **Pre-trained Model**: Saved to `bc_model.pth` (or configured path)
+- **Training Logs**: Console output with loss and accuracy metrics
+
+### PPO Training
 - **Training**: By default, results are saved to `outputs/YYYY-MM-DD/HH-MM-SS/`
   - Training logs
   - Performance plots (e.g., `average_return_vs_frames_*.png`)
