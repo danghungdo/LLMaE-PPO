@@ -178,7 +178,6 @@ class PPOAgent(AbstractAgent):
 
         Returns:
             Dictionary of results (learning rate, value loss, policy loss, entropy, old approx KL, approx KL, clipfrac, explained variance)
-
         """
         # Flatten tensors
         b_states = states.reshape((-1,) + self.envs.single_observation_space.shape)
@@ -261,3 +260,45 @@ class PPOAgent(AbstractAgent):
         """Set networks to evaluation mode."""
         self.actor.eval()
         self.critic.eval()
+
+    def save(self, path: str) -> None:
+        """
+        Save actor and critic weights.
+        Args:
+            path: Directory path to save weights
+        """
+        torch.save(self.actor.state_dict(), f"{path}/actor.pth")
+        torch.save(self.critic.state_dict(), f"{path}/critic.pth")
+
+    def load(self, path: str) -> None:
+        """
+        Load actor and critic weights, freeze initial layers, and update optimizer.
+        Args:
+            path: Directory path to load weights from
+        """
+        self.actor.load_state_dict(torch.load(f"{path}/actor.pth"))
+        self.critic.load_state_dict(torch.load(f"{path}/critic.pth"))
+
+        # Freeze the first linear layer and its bias in actor and critic
+        for name, param in self.actor.named_parameters():
+            if "actor.0.weight" in name or "actor.0.bias" in name:
+                param.requires_grad = False
+        for name, param in self.critic.named_parameters():
+            if "critic.0.weight" in name or "critic.0.bias" in name:
+                param.requires_grad = False
+
+        # Update optimizer to only include parameters that require gradients
+        self.optimizer = optim.Adam(
+            [
+                {
+                    "params": [p for p in self.actor.parameters() if p.requires_grad],
+                    "lr": self.lr_actor,
+                    "eps": 1e-5,
+                },
+                {
+                    "params": [p for p in self.critic.parameters() if p.requires_grad],
+                    "lr": self.lr_critic,
+                    "eps": 1e-5,
+                },
+            ]
+        )

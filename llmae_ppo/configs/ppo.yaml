@@ -15,6 +15,9 @@ cuda: true
 # Capture video of the agent's performance
 capture_video: false
 
+# Default Config Train,Load,Save
+choice: "2"
+
 agent:
   # Agent type
   name: PPO
@@ -48,7 +51,7 @@ train:
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 500000
+  total_steps: 1000000
   # Number of steps to collect per environment before updating
   num_steps_env: 128
   
