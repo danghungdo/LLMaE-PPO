@@ -130,7 +130,7 @@ def load_pkl_files(pkl_dir):
         
     return all_pairs
 
-def get_model_dimensions(data_pairs, env_name):
+def get_model_dimensions(data_pairs, env_name, max_steps):
     """
     Dynamically determine input and output dimensions for the model.
 
@@ -152,50 +152,102 @@ def get_model_dimensions(data_pairs, env_name):
         input_size = len(sample_state)
 
     # Get output size from environment action space
-    env = gym.make(env_name, max_steps=100)
+    env = gym.make(env_name, max_steps=max_steps)
     env = FlatObsWrapper(env)
     output_size = env.action_space.n
     env.close()
 
     return input_size, output_size
 
-# Evaluate model in the environment
-def evaluate_in_env(model, env_name, max_steps=100):
-    env = gym.make(env_name, max_steps=max_steps)
-    env = FlatObsWrapper(env)
-    obs, _ = env.reset()
-    done = False
-    steps = 0
+# Enhanced evaluation function for multiple episodes
+def evaluate_bc_model(model, env_name, max_steps, num_episodes, start_seed=0):
+    """
+    Evaluate BC model over multiple episodes and return comprehensive metrics.
+
+    Args:
+        model: BC model to evaluate
+        env_name: Environment name
+        max_steps: Maximum steps per episode
+        num_episodes: Number of episodes to evaluate
+        start_seed: Starting seed for episodes
+
+    Returns:
+        dict: Contains mean_return, std_return, success_rate, mean_episode_length, std_episode_length
+    """
     model.eval()
+    returns = []
+    episode_lengths = []
+    successes = 0
 
-    while not done and steps < max_steps:
-        state = obs.astype(np.float32)
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        with torch.no_grad():
-            action_probs = model(state_tensor)
-            action = torch.argmax(action_probs, dim=1).item()
-        obs, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
-        steps += 1
-        if terminated and reward > 0:
-            env.close()
-            return True, steps
+    for episode in range(num_episodes):
+        env = gym.make(env_name, max_steps=max_steps)
+        env = FlatObsWrapper(env)
+        obs, _ = env.reset(seed=0)
 
-    env.close()
-    return False, steps
+        episode_return = 0
+        steps = 0
+        done = False
 
-# Training function
-def train_bc(model, train_loader, test_loader, num_epochs=50, lr=0.001, device='cpu', verbose=True, print_freq=10):
+        while not done and steps < max_steps:
+            state = obs.astype(np.float32)
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+
+            with torch.no_grad():
+                action_probs = model(state_tensor)
+                action_probs_softmax = torch.softmax(action_probs, dim=1)
+                action = torch.multinomial(action_probs_softmax, 1).item()
+
+            obs, reward, terminated, truncated, _ = env.step(action)
+            episode_return += reward
+            steps += 1
+            done = terminated or truncated
+
+            if terminated and reward > 0:
+                successes += 1
+
+        returns.append(episode_return)
+        episode_lengths.append(steps)
+        env.close()
+
+    return {
+        'mean_return': np.mean(returns),
+        'std_return': np.std(returns),
+        'success_rate': successes / num_episodes,
+        'mean_episode_length': np.mean(episode_lengths),
+        'std_episode_length': np.std(episode_lengths)
+    }
+
+# Enhanced training function with periodic evaluation
+def train_bc_enhanced(model, train_loader, test_loader, cfg, device='cpu'):
+    """
+    Enhanced BC training with train-test validation, then training on full dataset.
+
+    Args:
+        model: BC model to train
+        train_loader: Training data loader
+        test_loader: Test data loader for validation
+        cfg: Configuration object
+        device: Training device
+
+    Returns:
+        tuple: (trained_model, training_metrics)
+    """
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    
-    for epoch in range(num_epochs):
+    optimizer = optim.Adam(model.parameters(), lr=cfg.model.lr)
+
+    training_metrics = []
+    global_step = 0
+
+    print("Phase 1: Training with train-test split for validation")
+    print("="*60)
+
+    for epoch in range(cfg.train.num_epochs):
         model.train()
         train_loss = 0.0
         train_correct = 0
         train_total = 0
-        
-        # Iterate through batches
+
+        # Training phase
         for states, actions in train_loader:
             states, actions = states.to(device), actions.to(device)
             optimizer.zero_grad()
@@ -203,36 +255,112 @@ def train_bc(model, train_loader, test_loader, num_epochs=50, lr=0.001, device='
             loss = criterion(outputs, actions)
             loss.backward()
             optimizer.step()
-            
+
             train_loss += loss.item() * states.size(0)
             _, predicted = torch.max(outputs, 1)
-            train_total += actions.size(0)  # total sample processed each batch
+            train_total += actions.size(0)
             train_correct += (predicted == actions).sum().item()
-        
+
+            global_step += states.size(0)
+
+            # Periodic evaluation during training
+            if hasattr(cfg.train, 'eval_interval') and global_step % cfg.train.eval_interval == 0:
+                eval_metrics = evaluate_bc_model(
+                    model,
+                    cfg.env.name,
+                    cfg.train.eval_max_steps,
+                    cfg.train.eval_episodes if hasattr(cfg.train, 'eval_episodes') else 5
+                )
+
+                print(f"Step {global_step}: "
+                      f"Mean Return: {eval_metrics['mean_return']:.3f} ± {eval_metrics['std_return']:.3f}, "
+                      f"Success Rate: {eval_metrics['success_rate']:.3f}, "
+                      f"Avg Length: {eval_metrics['mean_episode_length']:.1f}")
+
+                training_metrics.append({
+                    'step': global_step,
+                    'epoch': epoch,
+                    **eval_metrics
+                })
+
+                model.train()  # Switch back to training mode
+
+        # Calculate average training metrics
         train_loss /= train_total
         train_accuracy = train_correct / train_total
-        
+
         # Evaluate on test set
         model.eval()
         test_loss = 0.0
         test_correct = 0
         test_total = 0
+
         with torch.no_grad():
             for states, actions in test_loader:
                 states, actions = states.to(device), actions.to(device)
                 outputs = model(states)
                 loss = criterion(outputs, actions)
+
                 test_loss += loss.item() * states.size(0)
                 _, predicted = torch.max(outputs, 1)
                 test_total += actions.size(0)
                 test_correct += (predicted == actions).sum().item()
-        
+
         test_loss /= test_total
         test_accuracy = test_correct / test_total
 
-        if verbose and (epoch + 1) % print_freq == 0:
-            print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, Test Loss: {test_loss:.4f}, Test Acc: {test_accuracy:.4f}')
-    
+        if cfg.logging.verbose and (epoch + 1) % cfg.logging.print_freq == 0:
+            print(f'Epoch {epoch+1}/{cfg.train.num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, Test Loss: {test_loss:.4f}, Test Acc: {test_accuracy:.4f}')
+
+    return model, training_metrics
+
+# Function to train on full dataset
+def train_bc_full_dataset(model, full_loader, cfg, device='cpu'):
+    """
+    Train BC model on the full dataset after initial train-test validation.
+
+    Args:
+        model: BC model to train
+        full_loader: Full dataset loader
+        cfg: Configuration object
+        device: Training device
+
+    Returns:
+        trained_model
+    """
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=cfg.model.lr)
+
+    print("\nPhase 2: Training on full dataset")
+    print("="*60)
+
+    for epoch in range(cfg.train.num_epochs):
+        model.train()
+        epoch_loss = 0.0
+        epoch_correct = 0
+        epoch_total = 0
+
+        for states, actions in full_loader:
+            states, actions = states.to(device), actions.to(device)
+            optimizer.zero_grad()
+            outputs = model(states)
+            loss = criterion(outputs, actions)
+            loss.backward()
+            optimizer.step()
+
+            epoch_loss += loss.item() * states.size(0)
+            _, predicted = torch.max(outputs, 1)
+            epoch_total += actions.size(0)
+            epoch_correct += (predicted == actions).sum().item()
+
+        # Calculate average metrics
+        avg_loss = epoch_loss / epoch_total
+        accuracy = epoch_correct / epoch_total
+
+        if cfg.logging.verbose and (epoch + 1) % cfg.logging.print_freq == 0:
+            print(f'Full Dataset Epoch {epoch+1}/{cfg.train.num_epochs}, '
+                  f'Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}')
+
     return model
 
 @hydra.main(
@@ -272,7 +400,7 @@ def main(cfg: DictConfig):
     test_loader = DataLoader(test_dataset, batch_size=cfg.train.batch_size, shuffle=False)
 
     # Get input and output sizes dynamically
-    input_size, output_size = get_model_dimensions(all_pairs, cfg.env.name)
+    input_size, output_size = get_model_dimensions(all_pairs, cfg.env.name, cfg.env.max_episode_steps)
     print(f"Model configuration: input_size={input_size}, output_size={output_size}")
 
     # Initialize model with dynamic sizes
@@ -282,25 +410,49 @@ def main(cfg: DictConfig):
         hidden_size=cfg.model.hidden_size
     ).to(device)
 
-    # Train model
-    model = train_bc(
+    # Phase 1: Train with train-test split for validation
+    model, training_metrics = train_bc_enhanced(
         model,
         train_loader,
         test_loader,
-        num_epochs=cfg.train.num_epochs,
-        lr=cfg.model.lr,
-        device=device,
-        verbose=cfg.logging.verbose,
-        print_freq=cfg.logging.print_freq
+        cfg,
+        device=device
+    )
+
+    # Phase 2: Train on full dataset
+    full_dataset = MiniGridDataset(all_pairs)
+    full_loader = DataLoader(full_dataset, batch_size=cfg.train.batch_size, shuffle=True)
+
+    model = train_bc_full_dataset(
+        model,
+        full_loader,
+        cfg,
+        device=device
     )
 
     # Save model
-    torch.save(model.state_dict(), cfg.train.save_path)
+    torch.save(model.actor.state_dict(), cfg.train.save_path)
     print(f"Model saved to {cfg.train.save_path}")
 
-    # Evaluate in environment
-    success, steps = evaluate_in_env(model, cfg.env.name, cfg.train.eval_max_steps)
-    print(f'Environment Evaluation: Success={success}, Steps Taken={steps}')
+    # Final comprehensive evaluation
+    final_eval = evaluate_bc_model(
+        model,
+        cfg.env.name,
+        cfg.train.eval_max_steps,
+        cfg.train.eval_episodes * 2 if hasattr(cfg.train, 'eval_episodes') else 5  # More episodes for final eval
+    )
+
+    print("\n🎯 Final Evaluation Results:")
+    print(f"Mean Return: {final_eval['mean_return']:.3f} ± {final_eval['std_return']:.3f}")
+    print(f"Success Rate: {final_eval['success_rate']:.3f}")
+    print(f"Mean Episode Length: {final_eval['mean_episode_length']:.1f} ± {final_eval['std_episode_length']:.1f}")
+
+    # Print training metrics summary if available
+    if training_metrics:
+        print("\n📊 Training Metrics Summary:")
+        print(f"Total evaluation points: {len(training_metrics)}")
+        best_eval = max(training_metrics, key=lambda x: x['success_rate'])
+        print(f"Best success rate during training: {best_eval['success_rate']:.3f} at step {best_eval['step']}")
 
 if __name__ == '__main__':
     main()

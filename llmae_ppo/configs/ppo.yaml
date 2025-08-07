@@ -1,12 +1,12 @@
 # configs/agent/ppo.yaml
 # Hydra configuration for PPOAgent training by environment-step count.
 
-training_data_dir : 'trajectory_data'
+training_data_dir : '${hydra:runtime.cwd}/trajectory_data'
 
 env:
   # Gymnasium environment to train on
-  name: MiniGrid-DoorKey-6x6-v0
-  max_episode_steps: 360
+  name: MiniGrid-DoorKey-8x8-v0
+  max_episode_steps: 640
 
 # Global random seed
 seed: 0
@@ -16,6 +16,9 @@ cuda: true
 
 # Capture video of the agent's performance
 capture_video: false
+
+load_initial_policy: true
+initial_policy_path: '${hydra:runtime.cwd}/bc_model.pth'
 
 agent:
   # Agent type
@@ -50,7 +53,7 @@ train:
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 500000
+  total_steps: 1000000
   # Number of steps to collect per environment before updating
   num_steps_env: 128
   

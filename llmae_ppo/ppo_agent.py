@@ -39,6 +39,8 @@ class PPOAgent(AbstractAgent):
         hidden_size: int,
         cuda: bool,
         seed: int,
+        load_initial_policy,
+        initial_policy_path,
     ) -> None:
         self.envs = envs
         self.env_id = env_id
@@ -60,6 +62,8 @@ class PPOAgent(AbstractAgent):
         self.target_kl = target_kl
         self.cuda = cuda
         self.seed = seed
+        self.load_initial_policy = load_initial_policy
+        self.initial_policy_path = initial_policy_path
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() and self.cuda else "cpu"
         )
@@ -73,6 +77,88 @@ class PPOAgent(AbstractAgent):
         self.critic = ValueNetwork(self.envs.single_observation_space, hidden_size).to(
             self.device
         )
+
+        if self.load_initial_policy:
+            print(f"🔍 Loading BC weights from: {self.initial_policy_path}")
+            try:
+                bc_state_dict = torch.load(
+                    self.initial_policy_path, map_location=self.device
+                )
+                print(f"📊 Original BC state dict keys: {list(bc_state_dict.keys())}")
+
+                # Add "actor." prefix to match PPO actor keys
+                actor_state_dict = {f"actor.{k}": v for k, v in bc_state_dict.items()}
+                print(
+                    f"📊 Converted actor state dict keys: {list(actor_state_dict.keys())}"
+                )
+                print(f"📊 PPO actor keys: {list(self.actor.state_dict().keys())}")
+
+                # Check shape compatibility using converted keys
+                print("\n🔧 Shape Compatibility Check:")
+                compatible = True
+                for key in actor_state_dict.keys():
+                    if key in self.actor.state_dict():
+                        bc_shape = actor_state_dict[key].shape
+                        ppo_shape = self.actor.state_dict()[key].shape
+                        match = bc_shape == ppo_shape
+                        status = "✅" if match else "❌"
+                        print(f"  {key}: BC{bc_shape} vs PPO{ppo_shape} - {status}")
+                        if not match:
+                            compatible = False
+                    else:
+                        print(f"  ❌ Key '{key}' not found in PPO actor")
+                        compatible = False
+
+                # Check for missing keys in BC
+                for key in self.actor.state_dict().keys():
+                    if key not in actor_state_dict:
+                        print(f"  ⚠️ PPO key '{key}' not found in BC weights")
+                        compatible = False
+
+                if compatible:
+                    print("\n✅ All shapes are compatible!")
+                else:
+                    print("\n⚠️ Some shape mismatches detected!")
+
+                # Load the converted weights
+                missing_keys, unexpected_keys = self.actor.load_state_dict(
+                    actor_state_dict, strict=False
+                )
+
+                if not missing_keys and not unexpected_keys:
+                    print(
+                        "✅ Successfully loaded BC weights into PPO actor (perfect match)"
+                    )
+                elif not missing_keys:
+                    print(
+                        f"✅ Successfully loaded BC weights (some unexpected keys: {unexpected_keys})"
+                    )
+                else:
+                    print("⚠️ Partially loaded BC weights")
+                    print(f"  Missing keys: {missing_keys}")
+                    if unexpected_keys:
+                        print(f"  Unexpected keys: {unexpected_keys}")
+
+                # Test the loaded policy
+                print("\n🧪 Testing loaded policy...")
+                test_input = torch.randn(1, self.actor.state_dim).to(self.device)
+                with torch.no_grad():
+                    test_output = self.actor(test_input)
+                    print(f"  📈 Test output shape: {test_output.shape}")
+                    print(f"  📈 Test output: {test_output}")
+                    print(
+                        f"  📈 Test output range: [{test_output.min().item():.3f}, {test_output.max().item():.3f}]"
+                    )
+                    print("  ✅ Policy test successful!")
+
+            except FileNotFoundError:
+                print(f"❌ BC weight file not found: {self.initial_policy_path}")
+                print("🔄 Continuing with random weights...")
+            except Exception as e:
+                print(f"❌ Error loading BC weights: {e}")
+                print("🔄 Continuing with random weights...")
+        else:
+            print("🎲 Starting PPO training with random weights")
 
         # Combined optimizer
         self.optimizer = optim.Adam(

@@ -87,7 +87,7 @@ def create_eval_env(env_name, max_episode_steps, seed, num_envs):
     """
     eval_envs = gym.vector.SyncVectorEnv(
         [
-            make_env(env_name, max_episode_steps, seed, i, True, "eval")
+            make_env(env_name, max_episode_steps, seed, i, False, "eval")
             for i in range(num_envs)
         ]
     )

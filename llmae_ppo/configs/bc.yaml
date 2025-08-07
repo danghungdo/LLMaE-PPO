@@ -4,14 +4,14 @@
 # Data configuration
 data:
   training_data_dir: '${hydra:runtime.cwd}/trajectory_data'
-  test_size: 0.2
+  test_size: 0.1
   random_state: 42
 
 # Environment configuration
 env:
   # Gymnasium environment to train on (should match the environment used for trajectory generation)
-  name: MiniGrid-DoorKey-6x6-v0
-  max_episode_steps: 360
+  name: MiniGrid-DoorKey-8x8-v0
+  max_episode_steps: 640
 
 # Global random seed
 seed: 42
@@ -24,19 +24,21 @@ model:
   # Network architecture
   hidden_size: 64
   # Learning rate
-  lr: 2.5e-4 
+  lr: 1e-4
 
 # Training configuration
 train:
   # Training parameters
-  num_epochs: 50
+  num_epochs: 10
   batch_size: 32
 
   # Model saving
   save_path: '${hydra:runtime.cwd}/bc_model.pth'
 
   # Evaluation settings
-  eval_max_steps: 100
+  eval_max_steps: 640
+  eval_interval: 5000  # evaluate every N steps
+  eval_episodes: 5     # episodes per evaluation
 
 # Logging configuration (optional)
 logging:

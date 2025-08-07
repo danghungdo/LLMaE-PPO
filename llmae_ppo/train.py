@@ -69,6 +69,8 @@ def main(cfg: DictConfig) -> None:
         hidden_size=cfg.agent.hidden_size,
         cuda=cfg.cuda,
         seed=cfg.seed,
+        load_initial_policy=cfg.load_initial_policy,
+        initial_policy_path=cfg.initial_policy_path,
     )
 
     # Initialize trainer
