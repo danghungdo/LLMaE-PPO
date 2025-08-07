@@ -54,7 +54,7 @@ python llmae_ppo/train.py env.name=MiniGrid-Empty-8x8-v0 train.total_steps=10000
 **Behavioral Cloning**: Configuration in `llmae_ppo/configs/bc.yaml`
 ```bash
 # Override BC parameters
-python llmae_ppo_pre-train.py train.num_epochs=100 model.hidden_size=128 model.lr=0.001
+python llmae_ppo_pre-train.py train.num_epochs=100 
 ```
 
 ## Files
