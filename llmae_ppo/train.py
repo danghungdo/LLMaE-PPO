@@ -121,7 +121,7 @@ def main(cfg: DictConfig) -> None:
             print(
                 f"Error: Pre-trained weights not found at {actor_path} or {critic_path}. Training from scratch."
             )
-            choice = "1"  # Fallback to training from scratch
+            exit(1)  # Exit the program with an error status
 
     # Initialize trainer
     trainer = PPOTrainer(agent, writer)

@@ -62,6 +62,7 @@ python llmae_ppo/train.py env_name=MiniGrid-Empty-8x8-v0 total_timesteps=100000 
   - Video recordings of agent episodes
 - **Evaluation**: By default, evaluation videos are saved to `outputs/.../videos/eval/`
 - **TensorBoard**: Logs are saved to `outputs/.../runs/` directory
+- **Weights**: If option 3 (Train and save weights) is selected during training, weights of actor and critic will be saved to `pretrained_weights/actor.pth` and `pretrained_weights/critic.pth` once the training is finished.
 
 ## TensorBoard
 
@@ -132,3 +133,26 @@ make pre-commit
 The hooks will automatically:
 - Format code with Ruff
 - Sort imports with isort
+
+## Reproducing the Results
+
+### Normal PPO
+
+For our regular PPO results, we run:
+
+```bash
+python llmae_ppo/train.py env_name=MiniGrid-Doorkey-8x8-v0 total_timesteps=1000000 seed=0,7,42,69,73,666,888,9001,314159,1234567 -m
+```
+When prompted we choose option 1 (Train from scratch). This will train and save the results for each seed.
+## Transfer Learning PPO
+
+For our Transfer Learning results, we first run:
+
+```bash
+python llmae_ppo/train.py env_name=MiniGrid-Unlock-v0 total_timesteps=250000 seed=0
+```
+When prompted we choose option 3 (Train and save weights). This will pre-train the model on the *Minigrid-Unlock* enviroment and save the weights at the end of the run.
+
+Afterwards we follow it up with the same command as the **Normal PPO**. This time when prompted we select option 2 (Load pre-trained weights and fine-tune). This triggers a followup propt asking for the path. We input the path to the weights we previously generated and let it train.
+
+!!!Important Step: Inside on **train.py** there is a line *final_seed = 1234567*. This will need to be edited in case of different seed usage. Otherwise the multirun_choice won't get deleted once the run ends.
