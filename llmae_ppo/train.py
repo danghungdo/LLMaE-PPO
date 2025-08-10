@@ -71,6 +71,7 @@ def main(cfg: DictConfig) -> None:
         seed=cfg.seed,
         load_initial_policy=cfg.load_initial_policy,
         initial_policy_path=cfg.initial_policy_path,
+        initial_policy_type=cfg.initial_policy_type,
     )
 
     # Initialize trainer
@@ -78,7 +79,12 @@ def main(cfg: DictConfig) -> None:
 
     # Train the agent
     steps, average_returns, _, success_rates = trainer.train(
-        cfg.train.total_steps, cfg.train.eval_interval, cfg.train.eval_episodes
+        cfg.train.total_steps,
+        cfg.train.eval_interval,
+        cfg.train.eval_episodes,
+        save_best=cfg.checkpoint.save_best,
+        save_last=cfg.checkpoint.save_last,
+        checkpoint_dir=cfg.checkpoint.save_path,
     )
 
     # Plot and save results

@@ -60,7 +60,7 @@ def create_vector_env(
     """
     envs = gym.vector.SyncVectorEnv(
         [
-            make_env(env_name, max_episode_steps, seed, i, capture_video, run_name)
+            make_env(env_name, max_episode_steps, seed + i, i, capture_video, run_name)
             for i in range(num_envs)
         ]
     )
@@ -87,7 +87,7 @@ def create_eval_env(env_name, max_episode_steps, seed, num_envs):
     """
     eval_envs = gym.vector.SyncVectorEnv(
         [
-            make_env(env_name, max_episode_steps, seed, i, False, "eval")
+            make_env(env_name, max_episode_steps, seed + i, i, False, "eval")
             for i in range(num_envs)
         ]
     )

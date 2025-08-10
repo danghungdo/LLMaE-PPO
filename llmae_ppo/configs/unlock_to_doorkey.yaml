@@ -14,14 +14,14 @@ cuda: true
 # Capture video of the agent's performance
 capture_video: false
 
-load_initial_policy: false
-initial_policy_path: null
-initial_policy_type: null
+load_initial_policy: true
+initial_policy_path: '${hydra:runtime.cwd}/best_model.pth'
+initial_policy_type: 'ppo_full'
 
 agent:
   # Learning rates (same for actor and critic)
-  lr_actor: 2.5e-4    # actor step-size
-  lr_critic: 2.5e-4    # critic step-size
+  lr_actor: 1e-5    # actor step-size
+  lr_critic: 1e-5    # critic step-size
 
   # Discount and GAE
   gamma: 0.99

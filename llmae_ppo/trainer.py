@@ -5,6 +5,7 @@ Contains the PPOTrainer class with training loop and evaluation logic.
 
 from typing import List, Tuple
 
+import os
 import time
 
 import gymnasium as gym
@@ -29,11 +30,19 @@ class PPOTrainer:
         self.agent = agent
         self.writer = writer
 
+        # Best model tracking
+        self.best_success_rate = -1.0
+        self.best_mean_return = -float("inf")
+        self.best_step = 0
+
     def train(
         self,
         total_steps: int,
         eval_interval: int,
         eval_episodes: int,
+        save_best: bool = False,
+        save_last: bool = False,
+        checkpoint_dir: str = "checkpoints",
     ) -> Tuple[List[int], List[float], List[float]]:
         """
         Train the PPO agent.
@@ -42,6 +51,9 @@ class PPOTrainer:
             total_steps: Total number of environment steps
             eval_interval: Interval between evaluations
             eval_episodes: Number of episodes for evaluation
+            save_best: Whether to save the best performing model
+            save_last: Whether to save the final model after training
+            checkpoint_dir: Directory to save checkpoints
 
         Returns:
             Tuple of (steps, average_returns, std_returns)
@@ -50,7 +62,7 @@ class PPOTrainer:
         eval_envs = create_eval_env(
             self.agent.env_id,
             self.agent.max_episode_steps,
-            self.agent.seed,
+            self.agent.seed + 1000,  # evaluation seed
             self.agent.num_envs,
         )
 
@@ -124,6 +136,16 @@ class PPOTrainer:
                         Success Rate: {success_rate:.2%}""",
                     )
 
+                    # Check if this is the best model and save if requested
+                    if save_best:
+                        is_best = self._is_best_model(
+                            success_rate, mean_return, global_step
+                        )
+                        if is_best:
+                            self._save_best_model(
+                                checkpoint_dir, global_step, success_rate, mean_return
+                            )
+
             # Compute advantages after rollout
             with torch.no_grad():
                 next_value = self.agent.critic(next_states).reshape(
@@ -189,6 +211,10 @@ class PPOTrainer:
         pbar.close()
         print(f"Training complete after {global_step} steps.")
 
+        # Save final model if requested
+        if save_last:
+            self._save_last_model(checkpoint_dir, global_step)
+
         return steps, average_returns, std_returns, success_rates
 
     def evaluate(
@@ -247,3 +273,80 @@ class PPOTrainer:
         success_rate = success_count / num_episodes
 
         return float(np.mean(returns)), float(np.std(returns)), float(success_rate)
+
+    def _is_best_model(
+        self, success_rate: float, mean_return: float, step: int
+    ) -> bool:
+        """
+        Determine if the current model performance is the best so far.
+
+        Priority: Success Rate > Mean Return > Step (for tie-breaking)
+
+        Args:
+            success_rate: Current success rate
+            mean_return: Current mean return
+            step: Current training step
+
+        Returns:
+            bool: True if this is the best model so far
+        """
+        # Primary metric: Success rate
+        if success_rate > self.best_success_rate:
+            return True
+        elif success_rate == self.best_success_rate:
+            # Secondary metric: Mean return
+            if mean_return > self.best_mean_return:
+                return True
+            # elif mean_return == self.best_mean_return:
+            #     # Tie-breaker: Earlier step (prefer earlier convergence)
+            #     if step < self.best_step:
+            #         return True
+
+        return False
+
+    def _save_best_model(
+        self, checkpoint_dir: str, step: int, success_rate: float, mean_return: float
+    ) -> None:
+        """
+        Save the best performing model.
+
+        Args:
+            checkpoint_dir: Directory to save checkpoints
+            step: Current training step
+            success_rate: Current success rate
+            mean_return: Current mean return
+        """
+        # Update best metrics
+        self.best_success_rate = success_rate
+        self.best_mean_return = mean_return
+        self.best_step = step
+
+        best_model_path = os.path.join(checkpoint_dir, "best_model.pth")
+        metadata = {
+            "success_rate": success_rate,
+            "mean_return": mean_return,
+        }
+
+        self.agent.save_checkpoint(best_model_path, step, metadata)
+
+        print(
+            f"New best model! Step: {step}, Success: {success_rate:.2%}, Return: {mean_return:.2f}"
+        )
+
+        # Also log to TensorBoard
+        self.writer.add_scalar("best_model/success_rate", success_rate, step)
+        self.writer.add_scalar("best_model/mean_return", mean_return, step)
+
+    def _save_last_model(self, checkpoint_dir: str, step: int) -> None:
+        """
+        Save the final model at the end of training.
+
+        Args:
+            checkpoint_dir: Directory to save checkpoints
+            step: Final training step
+        """
+        last_model_path = os.path.join(checkpoint_dir, "last_model.pth")
+
+        self.agent.save_checkpoint(last_model_path, step)
+
+        print(f"Final model saved! Step: {step}")

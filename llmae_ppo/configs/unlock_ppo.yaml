@@ -2,7 +2,7 @@
 # Hydra configuration for PPOAgent training by environment-step count.
 env:
   # Gymnasium environment to train on
-  name: MiniGrid-DoorKey-8x8-v0
+  name: MiniGrid-Unlock-v0
   max_episode_steps: 640
 
 # Global random seed
@@ -49,7 +49,7 @@ train:
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 500000
+  total_steps: 250000
   # Number of steps to collect per environment before updating
   num_steps_env: 128
   

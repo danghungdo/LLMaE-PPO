@@ -57,6 +57,9 @@ def plot_and_save_results(
     axs[0].grid(True)
     axs[0].legend()
 
+    # add space between the two plots
+    fig.subplots_adjust(hspace=0.5)
+
     axs[1].plot(
         steps,
         success_rates,

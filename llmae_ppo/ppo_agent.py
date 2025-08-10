@@ -5,6 +5,8 @@ Contains the PPOAgent class with network initialization, prediction, and update 
 
 from typing import Dict, Tuple
 
+import os
+
 import gymnasium as gym
 import numpy as np
 import torch
@@ -39,8 +41,9 @@ class PPOAgent(AbstractAgent):
         hidden_size: int,
         cuda: bool,
         seed: int,
-        load_initial_policy,
-        initial_policy_path,
+        load_initial_policy: bool = False,
+        initial_policy_path: str = None,
+        initial_policy_type: str = None,
     ) -> None:
         self.envs = envs
         self.env_id = env_id
@@ -64,6 +67,7 @@ class PPOAgent(AbstractAgent):
         self.seed = seed
         self.load_initial_policy = load_initial_policy
         self.initial_policy_path = initial_policy_path
+        self.initial_policy_type = initial_policy_type
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() and self.cuda else "cpu"
         )
@@ -79,86 +83,91 @@ class PPOAgent(AbstractAgent):
         )
 
         if self.load_initial_policy:
-            print(f"🔍 Loading BC weights from: {self.initial_policy_path}")
+            print(
+                f"Loading {self.initial_policy_type} weights from: {self.initial_policy_path}"
+            )
             try:
-                bc_state_dict = torch.load(
-                    self.initial_policy_path, map_location=self.device
-                )
-                print(f"📊 Original BC state dict keys: {list(bc_state_dict.keys())}")
-
-                # Add "actor." prefix to match PPO actor keys
-                actor_state_dict = {f"actor.{k}": v for k, v in bc_state_dict.items()}
-                print(
-                    f"📊 Converted actor state dict keys: {list(actor_state_dict.keys())}"
-                )
-                print(f"📊 PPO actor keys: {list(self.actor.state_dict().keys())}")
-
-                # Check shape compatibility using converted keys
-                print("\n🔧 Shape Compatibility Check:")
-                compatible = True
-                for key in actor_state_dict.keys():
-                    if key in self.actor.state_dict():
-                        bc_shape = actor_state_dict[key].shape
-                        ppo_shape = self.actor.state_dict()[key].shape
-                        match = bc_shape == ppo_shape
-                        status = "✅" if match else "❌"
-                        print(f"  {key}: BC{bc_shape} vs PPO{ppo_shape} - {status}")
-                        if not match:
-                            compatible = False
-                    else:
-                        print(f"  ❌ Key '{key}' not found in PPO actor")
-                        compatible = False
-
-                # Check for missing keys in BC
-                for key in self.actor.state_dict().keys():
-                    if key not in actor_state_dict:
-                        print(f"  ⚠️ PPO key '{key}' not found in BC weights")
-                        compatible = False
-
-                if compatible:
-                    print("\n✅ All shapes are compatible!")
+                if self.initial_policy_type == "ppo_actor_only":
+                    # BC initialization: load only actor weights or transfer learning with actor-only
+                    self.load_actor_only(self.initial_policy_path)
+                elif self.initial_policy_type == "ppo_full":
+                    # Transfer learning: load full PPO checkpoint without optimizer
+                    self.load_checkpoint(self.initial_policy_path, load_optimizer=False)
                 else:
-                    print("\n⚠️ Some shape mismatches detected!")
-
-                # Load the converted weights
-                missing_keys, unexpected_keys = self.actor.load_state_dict(
-                    actor_state_dict, strict=False
-                )
-
-                if not missing_keys and not unexpected_keys:
-                    print(
-                        "✅ Successfully loaded BC weights into PPO actor (perfect match)"
+                    raise ValueError(
+                        f"Unknown initial_policy_type: {self.initial_policy_type}"
                     )
-                elif not missing_keys:
-                    print(
-                        f"✅ Successfully loaded BC weights (some unexpected keys: {unexpected_keys})"
-                    )
-                else:
-                    print("⚠️ Partially loaded BC weights")
-                    print(f"  Missing keys: {missing_keys}")
-                    if unexpected_keys:
-                        print(f"  Unexpected keys: {unexpected_keys}")
-
-                # Test the loaded policy
-                print("\n🧪 Testing loaded policy...")
-                test_input = torch.randn(1, self.actor.state_dim).to(self.device)
-                with torch.no_grad():
-                    test_output = self.actor(test_input)
-                    print(f"  📈 Test output shape: {test_output.shape}")
-                    print(f"  📈 Test output: {test_output}")
-                    print(
-                        f"  📈 Test output range: [{test_output.min().item():.3f}, {test_output.max().item():.3f}]"
-                    )
-                    print("  ✅ Policy test successful!")
-
             except FileNotFoundError:
-                print(f"❌ BC weight file not found: {self.initial_policy_path}")
-                print("🔄 Continuing with random weights...")
+                print(f"Initial policy file not found: {self.initial_policy_path}")
+                raise
             except Exception as e:
-                print(f"❌ Error loading BC weights: {e}")
-                print("🔄 Continuing with random weights...")
+                print(f"Error loading initial policy: {e}")
+                raise
         else:
-            print("🎲 Starting PPO training with random weights")
+            print("Starting PPO training with random weights")
+
+        # def _load_bc_weights(self):
+        #     """Load BC weights with the existing logic."""
+        #     bc_state_dict = torch.load(
+        #         self.initial_policy_path, map_location=self.device
+        #     )
+        #     print(f"Original BC state dict keys: {list(bc_state_dict.keys())}")
+
+        #     # Add "actor." prefix to match PPO actor keys
+        #     actor_state_dict = {f"actor.{k}": v for k, v in bc_state_dict.items()}
+        #     print(f"Converted actor state dict keys: {list(actor_state_dict.keys())}")
+        #     print(f"PPO actor keys: {list(self.actor.state_dict().keys())}")
+
+        #     # Check shape compatibility using converted keys
+        #     print("Shape Compatibility Check:")
+        #     compatible = True
+        #     for key in actor_state_dict.keys():
+        #         if key in self.actor.state_dict():
+        #             bc_shape = actor_state_dict[key].shape
+        #             ppo_shape = self.actor.state_dict()[key].shape
+        #             match = bc_shape == ppo_shape
+        #             status = "OK" if match else "MISMATCH"
+        #             print(f"  {key}: BC{bc_shape} vs PPO{ppo_shape} - {status}")
+        #             if not match:
+        #                 compatible = False
+        #         else:
+        #             print(f"  Key '{key}' not found in PPO actor")
+        #             compatible = False
+
+        #     # Check for missing keys in BC
+        #     for key in self.actor.state_dict().keys():
+        #         if key not in actor_state_dict:
+        #             print(f"  PPO key '{key}' not found in BC weights")
+        #             compatible = False
+
+        #     if compatible:
+        #         print("All shapes are compatible!")
+        #     else:
+        #         print("Some shape mismatches detected!")
+
+        #     # Load the converted weights
+        #     missing_keys, unexpected_keys = self.actor.load_state_dict(
+        #         actor_state_dict, strict=False
+        #     )
+
+        #     if not missing_keys and not unexpected_keys:
+        #         print("Successfully loaded BC weights into PPO actor (perfect match)")
+        #     elif not missing_keys:
+        #         print(f"Successfully loaded BC weights (some unexpected keys: {unexpected_keys})")
+        #     else:
+        #         print("Partially loaded BC weights")
+        #         print(f"  Missing keys: {missing_keys}")
+        #         if unexpected_keys:
+        #             print(f"  Unexpected keys: {unexpected_keys}")
+
+        #     # Test the loaded policy
+        #     print("Testing loaded policy...")
+        #     test_input = torch.randn(1, self.actor.state_dim).to(self.device)
+        #     with torch.no_grad():
+        #         test_output = self.actor(test_input)
+        #         print(f"  Test output shape: {test_output.shape}")
+        #         print(f"  Test output range: [{test_output.min().item():.3f}, {test_output.max().item():.3f}]")
+        #         print("  Policy test successful!")
 
         # Combined optimizer
         self.optimizer = optim.Adam(
@@ -338,12 +347,107 @@ class PPOAgent(AbstractAgent):
         }
         return results
 
-    def set_train_mode(self):
+    def set_train_mode(self) -> None:
         """Set networks to training mode."""
         self.actor.train()
         self.critic.train()
 
-    def set_eval_mode(self):
+    def set_eval_mode(self) -> None:
         """Set networks to evaluation mode."""
         self.actor.eval()
         self.critic.eval()
+
+    def save_checkpoint(self, path: str, step: int = 0, metadata: dict = None) -> None:
+        """
+        Save complete PPO checkpoint including networks and optimizer.
+
+        Args:
+            path: Path to save checkpoint
+            step: Training step
+            metadata: Additional metadata (success_rate, mean_return, etc.)
+        """
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        checkpoint = {
+            "step": step,
+            "actor_state_dict": self.actor.state_dict(),
+            "critic_state_dict": self.critic.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "hyperparameters": {
+                "lr_actor": self.lr_actor,
+                "lr_critic": self.lr_critic,
+                "gamma": self.gamma,
+                "gae_lambda": self.gae_lambda,
+                "clip_eps": self.clip_eps,
+                "epochs": self.epochs,
+                "ent_coef": self.ent_coef,
+                "vf_coef": self.vf_coef,
+                "max_grad_norm": self.max_grad_norm,
+            },
+        }
+
+        if metadata:
+            checkpoint.update(metadata)
+
+        torch.save(checkpoint, path)
+        print(f"PPO checkpoint saved to {path}")
+
+    def load_checkpoint(self, path: str) -> None:
+        """
+        Load PPO checkpoint for transfer learning with both actor and critic.
+
+        Args:
+            path: Path to checkpoint file
+
+        Returns:
+            dict: Checkpoint metadata
+        """
+        try:
+            checkpoint = torch.load(path, map_location=self.device)
+
+            # Load networks
+            self.actor.load_state_dict(checkpoint["actor_state_dict"])
+            self.critic.load_state_dict(checkpoint["critic_state_dict"])
+
+            print(f"PPO checkpoint loaded from {path}")
+
+        except FileNotFoundError:
+            print(f"Checkpoint not found: {path}")
+            raise
+        except Exception as e:
+            print(f"Error loading checkpoint: {e}")
+            raise
+
+        # freeze the first linear layer and its bias
+        for name, param in self.actor.named_parameters():
+            if "actor.0.weight" in name or "actor.0.bias" in name:
+                param.requires_grad = False
+        for name, param in self.critic.named_parameters():
+            if "critic.0.weight" in name or "critic.0.bias" in name:
+                param.requires_grad = False
+
+    def load_actor_only(self, path: str) -> None:
+        """
+        Load only actor weights (for BC initialization or transfer learning).
+        Supports both BC weights and PPO checkpoints.
+
+        Args:
+            path: Path to weights file
+        """
+        try:
+            checkpoint = torch.load(path, map_location=self.device)
+
+            # Handle different file formats
+            if "actor_state_dict" in checkpoint:
+                # PPO checkpoint format
+                actor_state_dict = checkpoint["actor_state_dict"]
+            else:
+                # BC weights format - add "actor." prefix
+                actor_state_dict = {f"actor.{k}": v for k, v in checkpoint.items()}
+            # Load actor weights
+            self.actor.load_state_dict(actor_state_dict)
+
+        except Exception as e:
+            print(f"Error loading actor weights: {e}")
+            raise

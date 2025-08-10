@@ -1,11 +1,10 @@
 # configs/bc.yaml
-# Hydra configuration for Behavioral Cloning pre-training
+# Behavioral Cloning pre-training configuration
+# Purpose: Train actor network to speed up PPO with early stopping at 15-20% success rate
 
 # Data configuration
 data:
   training_data_dir: '${hydra:runtime.cwd}/trajectory_data'
-  test_size: 0.1
-  random_state: 42
 
 # Environment configuration
 env:
@@ -29,20 +28,12 @@ model:
 # Training configuration
 train:
   # Training parameters
-  num_epochs: 10
+  num_epochs: 100
   batch_size: 32
+  
+  # Early stopping configuration
+  success_rate_threshold: 0.15  # Stop training when success rate >= 15%
+  eval_frequency: 1            # Evaluate every N epochs
 
   # Model saving
   save_path: '${hydra:runtime.cwd}/bc_model.pth'
-
-  # Evaluation settings
-  eval_max_steps: 640
-  eval_interval: 5000  # evaluate every N steps
-  eval_episodes: 5     # episodes per evaluation
-
-# Logging configuration (optional)
-logging:
-  # Whether to print detailed training progress
-  verbose: true
-  # Print frequency (every N epochs)
-  print_freq: 10

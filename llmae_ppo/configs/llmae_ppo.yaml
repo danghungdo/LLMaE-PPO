@@ -1,5 +1,5 @@
-# configs/agent/ppo.yaml
-# Hydra configuration for PPOAgent training by environment-step count.
+# configs/agent/llmae_ppo.yaml
+# Hydra configuration for LLLMaE-PPO: PPO training with LLM-generated trajectories for Behavioral Cloning pre-training
 env:
   # Gymnasium environment to train on
   name: MiniGrid-DoorKey-8x8-v0
@@ -14,13 +14,14 @@ cuda: true
 # Capture video of the agent's performance
 capture_video: false
 
-load_initial_policy: false
-initial_policy_path: null
-initial_policy_type: null
+# Initial policy loading (BC weights or transfer learning)
+load_initial_policy: true
+initial_policy_path: '${hydra:runtime.cwd}/bc_model.pth'
+initial_policy_type: 'ppo_actor_only' # 'ppo_actor_only', or 'ppo_full'
 
 agent:
   # Learning rates (same for actor and critic)
-  lr_actor: 2.5e-4    # actor step-size
+  lr_actor: 1e-4    # actor step-size, the lr is lower than the critic's because the actor is trained a bit
   lr_critic: 2.5e-4    # critic step-size
 
   # Discount and GAE
