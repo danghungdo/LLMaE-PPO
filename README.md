@@ -5,7 +5,7 @@
 This approach improves convergence speed and sample efficiency, particularly in environments with difficult exploration or sparse reward signals. The implementation focuses on MiniGrid environments with LLM-in-the-loop trajectory generation.
 
 <p align="center">
-  <img src="images/LLMaE-PPO.png" alt="LLMaE-PPO" width="1000"/>
+  <img src="images/llmae-ppo-final.png" alt="LLMaE-PPO" width="1000"/>
 </p>
 
 ## Key Features
