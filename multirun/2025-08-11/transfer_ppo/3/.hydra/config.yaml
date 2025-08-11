@@ -1,0 +1,33 @@
+env:
+  name: MiniGrid-DoorKey-8x8-v0
+  max_episode_steps: 640
+seed: 69
+cuda: true
+capture_video: false
+load_initial_policy: true
+initial_policy_path: ${hydra:runtime.cwd}/weights/pretrained_on_unlock/best_model_150k.pth
+initial_policy_type: ppo_full
+agent:
+  name: Transfer_PPO
+  lr_actor: 0.00025
+  lr_critic: 0.00025
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  epochs: 4
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  target_kl: null
+  hidden_size: 64
+train:
+  num_envs: 4
+  total_steps: 500000
+  num_steps_env: 128
+  num_mini_batches: 4
+  eval_interval: 10000
+  eval_episodes: 40
+checkpoint:
+  save_path: checkpoints
+  save_best: true
+  save_last: true
