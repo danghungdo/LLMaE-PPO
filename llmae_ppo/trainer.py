@@ -307,7 +307,7 @@ class PPOTrainer:
 
         self.agent.set_train_mode()
 
-        # pad & mask
+        # pad & mask helps keeping the shape consistent and therefore loading and vectorizing eval logs easier
         def pad_and_mask(ragged_lists, pad_value):
             max_len = max(len(lst) for lst in ragged_lists) if ragged_lists else 0
             mat = np.full((len(ragged_lists), max_len), pad_value, dtype=np.float32)

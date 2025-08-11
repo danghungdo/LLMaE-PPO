@@ -10,7 +10,7 @@ This approach improves convergence speed and sample efficiency, particularly in 
 - **Behavior cloning pretraining** - Initialize PPO policies using LLM-generated trajectories  
 - **PPO training & evaluation** - Complete RL training pipeline with MiniGrid integration
 - **Transfer learning** - Leverage pre-trained models across different environments
-- **Comprehensive evaluation** - Rliable metrics (IQM+CI, Time-to-Threshold, AUC+CI)
+- **Comprehensive evaluation** - Rliable metrics (IQM+CI, Time-to-Threshold)
 - **Experimental pipeline** - Full data generation, training, evaluation, and visualization workflow
 
 ## Quick Start
@@ -33,7 +33,7 @@ python llmae_ppo/train.py --config-name=ppo seed=0,7,42,69,73,666,888,9001,31415
 
 #### Transfer Learning (Unlock → DoorKey)
 ##### 1. Pre-train on Unlock environment (Optional)
-Train the agent in the Unlock environment for 250k steps to obtain pre-trained weights. This works well because Unlock is very similar to Doorkey (both require finding a key and unlocking a door) but is simpler, making it a good starting point.
+Train the agent in the Unlock environment for 100k steps to obtain pre-trained weights. This works well because Unlock is very similar to Doorkey (both require finding a key and unlocking a door) but is simpler, making it a good starting point.
 
 ```bash
 python llmae_ppo/train.py --config-name=unlock_ppo
@@ -60,7 +60,7 @@ python llmae_ppo/train.py --config-name=unlock_to_doorkey seed=0,7,42,69,73,666,
 Use LLM-generated trajectories for behavioral cloning pre-training, then PPO fine-tuning:
 
 ##### 1. Generate expert trajectories with LLM (Optional)
-Generate expert trajectories using an LLM (via OpenAI API). This approach obtains around 70% success rate for 50 trajectories. 
+Generate expert trajectories using an LLM - `Llama-3.3-70b-instruct` (via OpenAI API). This approach obtains around 70% success rate for 50 trajectories. 
 **Note: This step may take ~1.5 hours and requires OpenAI API access.**
 
 First, create a `.env` file in the project root with your API credentials (we recommend using OpenRouter):
@@ -201,11 +201,11 @@ tensorboard --logdir=runs
 
 Then open your browser and navigate to `http://localhost:6006` to view the training metrics and compare different seeds for that specific experiment.
 
-#### Automated Log Collection and Plotting
-Use the provided script to collect logs and generate sample efficiency plots:
+#### Visualizing Results from Evaluation Logs
+To visualize results from evaluation logs, run the following command:
 
 ```bash
-python plot_sample_efficiency.py
+python llmae_ppo/visualize.py
 ```
 
 ## Development
