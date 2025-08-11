@@ -4,6 +4,10 @@
 
 This approach improves convergence speed and sample efficiency, particularly in environments with difficult exploration or sparse reward signals. The implementation focuses on MiniGrid environments with LLM-in-the-loop trajectory generation.
 
+<p align="center">
+  <img src="images/LLMaE-PPO.png" alt="LLMaE-PPO" width="1000"/>
+</p>
+
 ## Key Features
 
 - **LLM-based trajectory generation** - Generate expert demonstrations by having LLMs interact with MiniGrid environments
@@ -33,7 +37,7 @@ python llmae_ppo/train.py --config-name=ppo seed=0,7,42,69,73,666,888,9001,31415
 
 #### Transfer Learning (Unlock → DoorKey)
 ##### 1. Pre-train on Unlock environment (Optional)
-Train the agent in the Unlock environment for 100k steps to obtain pre-trained weights. This works well because Unlock is very similar to Doorkey (both require finding a key and unlocking a door) but is simpler, making it a good starting point.
+Train the agent in the Unlock environment for 150k steps to obtain pre-trained weights. This works well because Unlock is very similar to Doorkey (both require finding a key and unlocking a door) but is simpler, making it a good starting point.
 
 ```bash
 python llmae_ppo/train.py --config-name=unlock_ppo
@@ -207,6 +211,11 @@ To visualize results from evaluation logs, run the following command:
 ```bash
 python llmae_ppo/visualize.py
 ```
+<p align="center">
+  <img src="images/returns.png" alt="Evaluation Results" width="600"/>
+  <img src="images/success.png" alt="Success Rates" width="600"/>
+</p>
+</p>
 
 ## Development
 
@@ -240,5 +249,3 @@ Pre-commit hooks automatically format code on commit and include:
 - Import sorting with isort
 
 ---
-
-*This project was developed as part of a university reinforcement learning course and includes a complete experimental pipeline for data generation, training, evaluation, and visualization.*

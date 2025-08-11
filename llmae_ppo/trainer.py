@@ -1,6 +1,7 @@
 """
 Training orchestration for PPO.
 Contains the PPOTrainer class with training loop and evaluation logic.
+Mainly adapted from https://github.com/vwxyzjn/ppo-implementation-details
 """
 
 from typing import List, Tuple

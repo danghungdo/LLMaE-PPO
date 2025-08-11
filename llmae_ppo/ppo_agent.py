@@ -1,6 +1,7 @@
 """
 Core PPO agent implementation.
 Contains the PPOAgent class with network initialization, prediction, and update logic.
+Mainly adapted from https://github.com/vwxyzjn/ppo-implementation-details
 """
 
 from typing import Dict, Tuple

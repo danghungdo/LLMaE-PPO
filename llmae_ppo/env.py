@@ -1,6 +1,7 @@
 """
 Environment management for PPO training.
 Handles environment creation, wrappers, and configuration.
+Mainly adapted from https://github.com/vwxyzjn/ppo-implementation-details
 """
 
 import gymnasium as gym
