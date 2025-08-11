@@ -24,7 +24,8 @@ dependencies = [
     "hydra-colorlog",
     "hydra-submitit-launcher",
     "moviepy",
-    "rliable"
+    "rliable",
+    "openai>=1.99.6",
 ]
 
 [dependency-groups]

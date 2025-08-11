@@ -50,6 +50,7 @@ def main(cfg: DictConfig) -> None:
     # Initialize PPO agent
     agent = PPOAgent(
         envs,
+        agent_name=cfg.agent.name,
         env_id=cfg.env.name,
         max_episode_steps=cfg.env.max_episode_steps,
         num_envs=cfg.train.num_envs,
@@ -87,7 +88,8 @@ def main(cfg: DictConfig) -> None:
         checkpoint_dir=cfg.checkpoint.save_path,
     )
 
-    # Plot and save results
+    # Plot and save results. Note the success rates are actually mean value of success rates
+    # Seed written in the plot is the starting seed for training!
     plot_and_save_results(steps, average_returns, success_rates, cfg.seed, cfg.env.name)
 
 

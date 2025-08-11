@@ -29,7 +29,10 @@ class MiniGridDataset(Dataset):
     def __init__(self, state_action_pairs):
         states = [pair["state"] for pair in state_action_pairs]
         actions = [pair["action"] for pair in state_action_pairs]
-
+        print(
+            f"Size of state: {states[0].shape if isinstance(states[0], np.ndarray) else len(states[0])}"
+        )
+        print(f"actions: {actions[0]}")
         self.states = torch.tensor(np.array(states, dtype=np.float32))
         self.actions = torch.tensor(np.array(actions, dtype=np.int64))
 

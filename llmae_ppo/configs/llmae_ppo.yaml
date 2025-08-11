@@ -16,10 +16,11 @@ capture_video: false
 
 # Initial policy loading (BC weights or transfer learning)
 load_initial_policy: true
-initial_policy_path: '${hydra:runtime.cwd}/bc_model.pth'
+initial_policy_path: '${hydra:runtime.cwd}/weights/bc/bc_model.pth'
 initial_policy_type: 'ppo_actor_only' # 'ppo_actor_only', or 'ppo_full'
 
 agent:
+  name: LLMaE_PPO
   # Learning rates (same for actor and critic)
   lr_actor: 1e-4    # actor step-size, the lr is lower than the critic's because the actor is trained a bit
   lr_critic: 2.5e-4    # critic step-size
@@ -50,7 +51,7 @@ train:
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 500000
+  total_steps: 100000
   # Number of steps to collect per environment before updating
   num_steps_env: 128
   
@@ -59,7 +60,7 @@ train:
 
   # Evaluation settings
   eval_interval: 10000  # evaluate every N steps
-  eval_episodes: 20     # episodes per evaluation
+  eval_episodes: 40     # episodes per evaluation
 
 # Model saving/loading configuration
 checkpoint:

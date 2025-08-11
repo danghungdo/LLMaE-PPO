@@ -35,6 +35,8 @@ class PPOTrainer:
         self.best_mean_return = -float("inf")
         self.best_step = 0
 
+        self.eval_seed_offset = 1000
+
     def train(
         self,
         total_steps: int,
@@ -43,6 +45,7 @@ class PPOTrainer:
         save_best: bool = False,
         save_last: bool = False,
         checkpoint_dir: str = "checkpoints",
+        eval_logs_dir: str = "eval_logs",
     ) -> Tuple[List[int], List[float], List[float]]:
         """
         Train the PPO agent.
@@ -54,15 +57,16 @@ class PPOTrainer:
             save_best: Whether to save the best performing model
             save_last: Whether to save the final model after training
             checkpoint_dir: Directory to save checkpoints
+            eval_logs_dir: Directory to save evaluation logs
 
         Returns:
-            Tuple of (steps, average_returns, std_returns)
+            Tuple of (steps, average_returns, std_returns, success_rates)
         """
         # Create evaluation environments
         eval_envs = create_eval_env(
             self.agent.env_id,
             self.agent.max_episode_steps,
-            self.agent.seed + 1000,  # evaluation seed
+            self.agent.seed + self.eval_seed_offset,  # evaluation seed
             self.agent.num_envs,
         )
 
@@ -114,9 +118,24 @@ class PPOTrainer:
                 next_dones = torch.Tensor(done).to(self.agent.device)
 
                 if global_step % eval_interval == 0:
-                    mean_return, std_return, success_rate = self.evaluate(
-                        eval_envs, eval_episodes
+                    returns_mat, mask_mat, success_mat, success_mask, eval_seeds = (
+                        self.evaluate(eval_envs, eval_episodes)
                     )
+
+                    # calculate summary metrics
+                    flat_returns = returns_mat[mask_mat]
+                    flat_success = success_mat[success_mask]
+
+                    mean_return = (
+                        float(np.nanmean(flat_returns)) if flat_returns.size else 0.0
+                    )
+                    std_return = (
+                        float(np.nanstd(flat_returns)) if flat_returns.size else 0.0
+                    )
+                    success_rate = (
+                        float(np.mean(flat_success)) if flat_success.size else 0.0
+                    )
+
                     steps.append(global_step)
                     average_returns.append(mean_return)
                     std_returns.append(std_return)
@@ -134,6 +153,21 @@ class PPOTrainer:
                     print(
                         f"""\nEvaluating: Global Step {global_step:6d} AvgReturn {mean_return:5.1f} ± {std_return:4.1f}
                         Success Rate: {success_rate:.2%}""",
+                    )
+
+                    # save .npz file for later analysis with rliable
+                    os.makedirs(eval_logs_dir, exist_ok=True)
+                    save_path = os.path.join(
+                        eval_logs_dir, f"{self.agent.agent_name}_step{global_step}.npz"
+                    )
+                    np.savez(
+                        save_path,
+                        returns=returns_mat,
+                        mask=mask_mat,
+                        success=success_mat,
+                        success_mask=success_mask,
+                        eval_seeds=np.array(eval_seeds, dtype=np.int64),
+                        step=np.int64(global_step),
                     )
 
                     # Check if this is the best model and save if requested
@@ -219,7 +253,7 @@ class PPOTrainer:
 
     def evaluate(
         self, eval_envs: gym.vector.SyncVectorEnv, num_episodes: int
-    ) -> Tuple[float, float]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[int]]:
         """
         Evaluate the agent on the given environments.
 
@@ -228,21 +262,24 @@ class PPOTrainer:
             num_episodes: Number of episodes to evaluate
 
         Returns:
-            Tuple of (mean_return, std_return)
+            Tuple of (returns_mat, mask_mat, success_mat, success_mask, eval_seeds)
         """
         self.agent.set_eval_mode()
+        num_envs = self.agent.num_envs
 
-        # List to store returns of completed episodes
-        returns = []
+        # calculate eval seeds, check file env.py for seed calc
+        eval_seeds = [
+            self.agent.seed + self.eval_seed_offset + i for i in range(num_envs)
+        ]
 
-        # Track number of episodes completed successfully
-        success_count = 0
+        returns_per_env = [[] for _ in range(num_envs)]
+        success_per_env = [[] for _ in range(num_envs)]
 
         # Reset all environments and get initial states
-        obs, infos = eval_envs.reset()
+        obs, _ = eval_envs.reset()
         next_states = torch.Tensor(obs).to(self.agent.device)
         episodes_completed = 0
-        episode_returns = np.zeros(self.agent.num_envs)
+        episode_returns = np.zeros(num_envs, dtype=np.float32)
 
         # Loop until we have collected enough completed episodes
         while episodes_completed < num_episodes:
@@ -257,22 +294,35 @@ class PPOTrainer:
                 next_states = torch.Tensor(next_states).to(self.agent.device)
 
                 # Handle terminations and truncations
-                for i in range(self.agent.num_envs):
+                for i in range(num_envs):
                     episode_returns[i] += rewards[i]
                     if terminations[i] or truncations[i]:
-                        returns.append(episode_returns[i])
+                        returns_per_env[i].append(float(episode_returns[i]))
+                        success_per_env[i].append(int(terminations[i]))
                         episode_returns[i] = 0
                         episodes_completed += 1
-                        if terminations[i]:
-                            success_count += 1
+
                         if episodes_completed >= num_episodes:
                             break
 
         self.agent.set_train_mode()
 
-        success_rate = success_count / num_episodes
+        # pad & mask
+        def pad_and_mask(ragged_lists, pad_value):
+            max_len = max(len(lst) for lst in ragged_lists) if ragged_lists else 0
+            mat = np.full((len(ragged_lists), max_len), pad_value, dtype=np.float32)
+            mask = np.zeros((len(ragged_lists), max_len), dtype=bool)
+            for i, lst in enumerate(ragged_lists):
+                n = len(lst)
+                if n:
+                    mat[i, :n] = lst
+                    mask[i, :n] = True
+            return mat, mask
 
-        return float(np.mean(returns)), float(np.std(returns)), float(success_rate)
+        returns_mat, mask_mat = pad_and_mask(returns_per_env, np.nan)
+        success_mat, success_mask = pad_and_mask(success_per_env, 0)
+
+        return returns_mat, mask_mat, success_mat, success_mask, eval_seeds
 
     def _is_best_model(
         self, success_rate: float, mean_return: float, step: int

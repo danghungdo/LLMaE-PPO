@@ -1,5 +1,5 @@
 # configs/agent/ppo.yaml
-# Hydra configuration for PPOAgent training by environment-step count.
+# Hydra configuration for Transfer PPO training on the DoorKey environment after pre-training on the Unlock environment.
 env:
   # Gymnasium environment to train on
   name: MiniGrid-DoorKey-8x8-v0
@@ -15,13 +15,14 @@ cuda: true
 capture_video: false
 
 load_initial_policy: true
-initial_policy_path: '${hydra:runtime.cwd}/best_model.pth'
+initial_policy_path: '${hydra:runtime.cwd}/weights/pretrain_on_unlock/best_model.pth'
 initial_policy_type: 'ppo_full'
 
 agent:
+  name: Transfer_PPO
   # Learning rates (same for actor and critic)
-  lr_actor: 1e-5    # actor step-size
-  lr_critic: 1e-5    # critic step-size
+  lr_actor: 2.5e-4    # actor step-size
+  lr_critic: 2.5e-4    # critic step-size
 
   # Discount and GAE
   gamma: 0.99
@@ -45,6 +46,7 @@ agent:
   hidden_size: 64
 
 train:
+  
   # Number of parallel environments
   num_envs: 4
 
@@ -58,7 +60,7 @@ train:
 
   # Evaluation settings
   eval_interval: 10000  # evaluate every N steps
-  eval_episodes: 20     # episodes per evaluation
+  eval_episodes: 40     # episodes per evaluation
 
 # Model saving/loading configuration
 checkpoint:

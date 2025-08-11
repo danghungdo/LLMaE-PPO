@@ -33,7 +33,7 @@ train:
   
   # Early stopping configuration
   success_rate_threshold: 0.15  # Stop training when success rate >= 15%
-  eval_frequency: 1            # Evaluate every N epochs
+  eval_frequency: 2            # Evaluate every N epochs
 
   # Model saving
   save_path: '${hydra:runtime.cwd}/bc_model.pth'

@@ -43,7 +43,7 @@ class LLMAgent(AbstractAgent):
         # Initialize components
         self.llm_interface = LLMInterface(model=model, **kwargs)
         self.observation_parser = ObservationParser()
-        self.prompt_manager = PromptManager(env_name=env_name)
+        self.prompt_manager = PromptManager()
 
         # Agent state
         self.action_space_size = None

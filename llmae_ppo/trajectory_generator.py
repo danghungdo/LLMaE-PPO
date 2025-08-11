@@ -15,6 +15,8 @@ import sys
 import time
 
 import gymnasium as gym
+import minigrid  # noqa: F401
+from minigrid.wrappers import FlatObsWrapper
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from trajectory_generation import LLMAgent
@@ -33,7 +35,6 @@ class TrajectoryCollector:
         """
         self.args = args
         self.successful_trajectories = []
-        self.failed_trajectories = []
         self.total_generated = 0
         self.success_count = 0
 
@@ -88,7 +89,6 @@ class TrajectoryCollector:
         summary = {
             "total_generated": self.total_generated,
             "successful": self.success_count,
-            "failed": len(self.failed_trajectories),
             "success_rate": self._get_success_rate(),
             "duration_seconds": duration,
             "trajectories_saved": len(self.successful_trajectories),
@@ -100,9 +100,15 @@ class TrajectoryCollector:
     def _generate_single_trajectory(self, seed: int, trajectory_idx: int) -> bool:
         """Generate a single trajectory."""
         try:
-            # Create environment
+            # Create environments - one for LLM (structured obs) and one for BC data (flattened obs)
             render_mode = "human" if self.args.visualize else None
-            env = gym.make(self.args.env_name, render_mode=render_mode)
+
+            # Environment for LLM agent (structured observations)
+            llm_env = gym.make(self.args.env_name, render_mode=render_mode)
+
+            # Environment for BC data collection (flattened observations)
+            bc_env = gym.make(self.args.env_name)
+            bc_env = FlatObsWrapper(bc_env)
 
             # Create LLM agent
             agent = LLMAgent(
@@ -112,11 +118,12 @@ class TrajectoryCollector:
                 max_retries=3,
                 retry_delay=1.0,
             )
-            agent.update_agent(action_space_size=env.action_space.n)
+            agent.update_agent(action_space_size=llm_env.action_space.n)
 
-            # Generate trajectory
-            trajectory_data = self._run_episode(env, agent, seed)
-            env.close()
+            # Generate trajectory using both environments
+            trajectory_data = self._run_episode(llm_env, bc_env, agent, seed)
+            llm_env.close()
+            bc_env.close()
 
             # Check if trajectory was successful
             success = trajectory_data["success"]
@@ -136,9 +143,11 @@ class TrajectoryCollector:
             print(f"Failed to generate trajectory {trajectory_idx} (seed {seed}): {e}")
             raise e
 
-    def _run_episode(self, env, agent, seed: int) -> Dict[str, Any]:
-        """Run a single episode and collect data."""
-        obs, _ = env.reset(seed=seed)
+    def _run_episode(self, llm_env, bc_env, agent, seed: int) -> Dict[str, Any]:
+        """Run a single episode and collect data using dual environments."""
+        # Reset both environments with same seed to ensure synchronization
+        llm_obs, _ = llm_env.reset(seed=seed)
+        bc_obs, _ = bc_env.reset(seed=seed)
         agent.reset_episode()
 
         states = []
@@ -149,18 +158,21 @@ class TrajectoryCollector:
 
         done = False
         while not done and steps < self.args.max_steps:
-            # Render if visualization is enabled
+            # Render if visualization is enabled (use LLM env for visualization)
             if self.args.visualize:
-                env.render()
+                llm_env.render()
 
-            # Get observation for BC (flattened state)
-            if isinstance(obs, dict) and "image" in obs:
-                flat_state = obs["image"].flatten()
-            else:
-                flat_state = obs
+            # Get observation for BC (properly flattened by FlatObsWrapper)
+            flat_state = bc_obs
 
-            # Get action from agent
-            action, info = agent.predict_action(obs)
+            # Debug output for observation shapes
+            if self.args.debug and steps == 0:
+                if isinstance(llm_obs, dict) and "image" in llm_obs:
+                    print(f"LLM observation shape: {llm_obs['image'].shape}")
+                print(f"BC flattened state shape: {flat_state.shape}")
+
+            # Get action from agent using structured observation
+            action, info = agent.predict_action(llm_obs)
 
             # Debug output
             if self.args.debug:
@@ -179,12 +191,28 @@ class TrajectoryCollector:
                     print("Agent went through the door!")
                 agent.is_went_through_door = True
 
-            # Store state-action pair
+            # Store state-action pair (using BC-compatible flattened state)
             states.append(flat_state)
             actions.append(action)
 
-            # Execute action
-            obs, reward, terminated, truncated, env_info = env.step(action)
+            # Execute action in both environments to keep them synchronized
+            llm_obs, llm_reward, llm_terminated, llm_truncated, llm_info = llm_env.step(
+                action
+            )
+            bc_obs, bc_reward, bc_terminated, bc_truncated, bc_info = bc_env.step(
+                action
+            )
+
+            # Use rewards from LLM environment (they should be identical)
+            assert llm_reward == bc_reward, (
+                "Rewards from LLM and BC environments should match"
+            )
+            assert llm_terminated == bc_terminated, "Termination states should match"
+            assert llm_truncated == bc_truncated, "Truncation states should match"
+
+            reward = llm_reward
+            terminated = llm_terminated
+            truncated = llm_truncated
 
             rewards.append(reward)
             episode_reward += reward
@@ -229,12 +257,10 @@ class TrajectoryCollector:
         metadata = {
             "args": vars(self.args),
             "successful_trajectories": len(self.successful_trajectories),
-            "failed_trajectories": len(self.failed_trajectories),
             "success_rate": self._get_success_rate(),
             "total_state_action_pairs": sum(
                 len(traj["states"]) for traj in self.successful_trajectories
             ),
-            "generation_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "successful_seeds": [traj["seed"] for traj in self.successful_trajectories],
         }
 
@@ -288,7 +314,7 @@ def main():
         "--max_steps", type=int, default=50, help="Max steps per trajectory"
     )
     parser.add_argument(
-        "--output_dir", default="trajectory_data_1", help="Output directory"
+        "--output_dir", default="trajectory_data", help="Output directory"
     )
     parser.add_argument(
         "--debug",

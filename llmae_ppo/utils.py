@@ -52,7 +52,7 @@ def plot_and_save_results(
         label=f"PPO (Seed: {seed})",
     )
     axs[0].set_xlabel("Steps")
-    axs[0].set_ylabel("Average Return")
+    axs[0].set_ylabel("Mean Average Return")
     axs[0].set_title(f"Average Return vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
     axs[0].grid(True)
     axs[0].legend()
@@ -66,7 +66,7 @@ def plot_and_save_results(
         label=f"PPO (Seed: {seed})",
     )
     axs[1].set_xlabel("Steps")
-    axs[1].set_ylabel("Success Rate")
+    axs[1].set_ylabel("Mean Success Rate")
     axs[1].set_title(f"Success Rate vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
     axs[1].grid(True)
     axs[1].legend()

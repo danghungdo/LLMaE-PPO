@@ -4,6 +4,7 @@ Handles environment creation, wrappers, and configuration.
 """
 
 import gymnasium as gym
+import minigrid  # noqa: F401
 from minigrid.wrappers import FlatObsWrapper
 
 

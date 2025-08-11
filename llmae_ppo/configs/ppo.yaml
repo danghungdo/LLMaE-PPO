@@ -19,6 +19,7 @@ initial_policy_path: null
 initial_policy_type: null
 
 agent:
+  name: PPO
   # Learning rates (same for actor and critic)
   lr_actor: 2.5e-4    # actor step-size
   lr_critic: 2.5e-4    # critic step-size
@@ -58,7 +59,7 @@ train:
 
   # Evaluation settings
   eval_interval: 10000  # evaluate every N steps
-  eval_episodes: 20     # episodes per evaluation
+  eval_episodes: 40     # episodes per evaluation
 
 # Model saving/loading configuration
 checkpoint:
