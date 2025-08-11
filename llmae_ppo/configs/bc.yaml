@@ -1,0 +1,39 @@
+# configs/bc.yaml
+# Behavioral Cloning pre-training configuration
+# Purpose: Train actor network to speed up PPO with early stopping at 15-20% success rate
+
+# Data configuration
+data:
+  training_data_dir: '${hydra:runtime.cwd}/trajectory_data'
+
+# Environment configuration
+env:
+  # Gymnasium environment to train on (should match the environment used for trajectory generation)
+  name: MiniGrid-DoorKey-8x8-v0
+  max_episode_steps: 640
+
+# Global random seed
+seed: 42
+
+# Whether to use CUDA for training
+cuda: true
+
+# Model configuration
+model:
+  # Network architecture
+  hidden_size: 64
+  # Learning rate
+  lr: 1e-4
+
+# Training configuration
+train:
+  # Training parameters
+  num_epochs: 100
+  batch_size: 32
+  
+  # Early stopping configuration
+  success_rate_threshold: 0.15  # Stop training when success rate >= 15%
+  eval_frequency: 2            # Evaluate every N epochs
+
+  # Model saving
+  save_path: '${hydra:runtime.cwd}/bc_model.pth'

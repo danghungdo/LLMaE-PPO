@@ -1,0 +1,69 @@
+# configs/agent/ppo.yaml
+# Hydra configuration for Pretrain PPO training on the Unlock environment before transferring to the DoorKey environment.
+env:
+  # Gymnasium environment to train on
+  name: MiniGrid-Unlock-v0
+  max_episode_steps: 640
+
+# Global random seed
+seed: 0
+
+# Whether to use CUDA for training
+cuda: true
+
+# Capture video of the agent's performance
+capture_video: false
+
+load_initial_policy: false
+initial_policy_path: null
+initial_policy_type: null
+
+agent:
+  name: Pretrain_PPO
+  # Learning rates (same for actor and critic)
+  lr_actor: 2.5e-4    # actor step-size
+  lr_critic: 2.5e-4    # critic step-size
+
+  # Discount and GAE
+  gamma: 0.99
+  gae_lambda: 0.95
+
+  # PPO-specific
+  clip_eps: 0.2      # clipping epsilon for surrogate objective
+  epochs: 4          # number of epochs to optimize the policy per update
+
+  # Regularization coefficients
+  ent_coef: 0.01     # entropy bonus weight
+  vf_coef: 0.5       # value-loss weight
+
+  # the maximum norm for the gradient clipping
+  max_grad_norm: 0.5
+
+  # the target KL divergence threshold for early stopping
+  target_kl: null # null means no early stopping
+
+  # Network size
+  hidden_size: 64
+
+train:
+  # Number of parallel environments
+  num_envs: 4
+
+  # Total environment interactions to run
+  total_steps: 250000
+  # Number of steps to collect per environment before updating
+  num_steps_env: 128
+  
+  # number of mini-batches per update
+  num_mini_batches: 4
+
+  # Evaluation settings
+  eval_interval: 10000  # evaluate every N steps
+  eval_episodes: 40     # episodes per evaluation
+
+# Model saving/loading configuration
+checkpoint:
+  # Only save best and last checkpoints (saves storage space)
+  save_path: 'checkpoints'  # relative to hydra working dir (multirun/DATE/TIME/RUN_ID/)
+  save_best: true       # save best performing model based on evaluation
+  save_last: true       # save final model at end of training
