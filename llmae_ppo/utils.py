@@ -1,14 +1,16 @@
 """
-Utility functions for PPO training.
+Utility functions for PPO training and visualization
 """
 
 from typing import List
 
 import os
 import random
+import re
 
 import numpy as np
 import torch
+import yaml
 from matplotlib import pyplot as plt
 
 
@@ -53,7 +55,9 @@ def plot_and_save_results(
     )
     axs[0].set_xlabel("Steps")
     axs[0].set_ylabel("Mean Average Return")
-    axs[0].set_title(f"Average Return vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
+    axs[0].set_title(
+        f"Mean Average Return vs. Steps: PPO (Seed: {seed}, Env: {env_name})"
+    )
     axs[0].grid(True)
     axs[0].legend()
 
@@ -67,7 +71,9 @@ def plot_and_save_results(
     )
     axs[1].set_xlabel("Steps")
     axs[1].set_ylabel("Mean Success Rate")
-    axs[1].set_title(f"Success Rate vs. Steps: PPO (Seed: {seed}, Env: {env_name})")
+    axs[1].set_title(
+        f"Mean Success Rate vs. Steps: PPO (Seed: {seed}, Env: {env_name})"
+    )
     axs[1].grid(True)
     axs[1].legend()
 
@@ -82,3 +88,27 @@ def plot_and_save_results(
     plt.savefig(plot_path)
     plt.close()
     print(f"Plot saved to: {plot_path}")
+
+
+# Visualization helper
+def extract_step(path: str) -> int:
+    m = re.search(r"_step(\d+)\.npz$", os.path.basename(path))
+    return int(m.group(1)) if m else -1
+
+
+def run_dir_from_npz(path: str) -> str:
+    parts = os.path.normpath(path).split(os.sep)
+    if "eval_logs" in parts:
+        return os.sep.join(parts[: parts.index("eval_logs")])
+    return os.path.dirname(path)
+
+
+def read_seed(run_dir: str) -> int:
+    cfg = os.path.join(run_dir, ".hydra", "config.yaml")
+    with open(cfg, "r") as f:
+        data = yaml.safe_load(f)
+    if "seed" in data:
+        return int(data["seed"])
+    if "train" in data and "seed" in data["train"]:
+        return int(data["train"]["seed"])
+    raise KeyError(f"Seed not found in {cfg}")

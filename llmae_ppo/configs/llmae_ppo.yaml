@@ -51,7 +51,7 @@ train:
   num_envs: 4
 
   # Total environment interactions to run
-  total_steps: 100000
+  total_steps: 500000
   # Number of steps to collect per environment before updating
   num_steps_env: 128
   
